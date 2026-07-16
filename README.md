@@ -11,7 +11,28 @@
 ## Cấu trúc
 
 ```text
-App/
+my_first_app/
+  .vscode/
+  cyber_game_management/
+    Database/
+    App/
+      src/
+        backend/
+        frontend/
+      public/
+      tests/
+      config/
+      docs/
+      package.json
+      .gitignore
+      README.md
+  document/
+```
+
+Trong đó `App/` là Git repository chính của phần mềm:
+
+```text
+my_first_app/cyber_game_management/App/
   src/
     backend/
     frontend/
