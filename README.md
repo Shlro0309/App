@@ -1,14 +1,14 @@
-# Cyber Game Management
+# Cyber Game Management (bài tập lớn đầu tiên của tôi)
 
-He thong quan ly Cyber Game gom backend Spring Boot va frontend React/Vite.
+Hệ thống quản lý Cyber Game gồm backend Spring Boot và frontend React/Vite.
 
-## Cong nghe
+## Công cụ
 
 - Backend: Java 21, Spring Boot 3.x, Spring Security, JWT, Spring Data JPA, Hibernate, Maven, Lombok, MapStruct, WebSocket, OpenAPI.
 - Frontend: React 19, Vite, TypeScript, React Router, Axios, Zustand, React Hook Form, Zod, Tailwind CSS, shadcn/ui, Recharts, Framer Motion.
 - Database: Microsoft SQL Server.
 
-## Cau truc
+## Cấu trúc
 
 ```text
 App/
@@ -17,13 +17,13 @@ App/
   README.md
 ```
 
-Backend tuan theo mo hinh:
+Backend tuân theo mô hình:
 
 ```text
 controller -> service -> repository -> database
 ```
 
-Frontend duoc chia theo:
+Frontend được chia theo:
 
 ```text
 api, components, features, hooks, layouts, pages, routes, stores, types, utils, assets
@@ -31,29 +31,29 @@ api, components, features, hooks, layouts, pages, routes, stores, types, utils, 
 
 ## Database
 
-Schema goc nam tai:
+Schema gốc nằm tại:
 
 ```text
 ../Database/script chứa bảng và quan hệ.sql
 ```
 
-Quy uoc cua du an:
+Quy ươc của dụ án:
 
-- Khong tu y sua cau truc database.
-- Hibernate dung `ddl-auto=validate`.
-- Entity se duoc sinh/map theo dung bang va khoa ngoai trong file SQL.
-- Khong tra Entity truc tiep ra API, chi tra DTO.
+- Không tự ý chỉnh sửa cấu trúc database.
+- Hibernate dùng `ddl-auto=validate`.
+- Entity sẽ được sinh/map theo đúng bảng và khóa ngoại trong file SQL.
+- Không trả Entity trực tiếp ra API, chi trả DTO.
 
-## Yeu cau moi truong
+## Yêu cầu môi trường cho dự án này
 
 - Java 21
 - Maven 3.9+
 - Node.js 20+
 - Microsoft SQL Server
 
-## Chay backend
+## Chạy backend
 
-Tao bien moi truong hoac sua theo `backend/.env.example`, sau do:
+tạo biến môi trường theo `backend/.env.example`, sau đó:
 
 ```bash
 cd backend
@@ -66,9 +66,9 @@ Swagger UI:
 http://localhost:8080/api/swagger-ui.html
 ```
 
-## Chay frontend
+## Chạy frontend
 
-Tao bien moi truong theo `frontend/.env.example`, sau do:
+tạo biến môi trường theo `frontend/.env.example`, sau đó:
 
 ```bash
 cd frontend
@@ -76,15 +76,15 @@ npm install
 npm run dev
 ```
 
-Frontend mac dinh:
+Frontend mặc định:
 
 ```text
 http://localhost:5173
 ```
 
-## Trang thai hien tai
+## Tiến độ hiện tại
 
-Da hoan thanh giai doan 1:
+Đã hoan thanh giai doan 1:
 
 - Tao khung backend Spring Boot.
 - Tao khung frontend React/Vite.
