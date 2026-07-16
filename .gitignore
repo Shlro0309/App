@@ -31,6 +31,7 @@ src/frontend/.eslintcache
 
 # Portable local tools
 tools/
+config/tools/
 
 # SQL Server local files
 ../Database/*.mdf

@@ -3,9 +3,12 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
-    "backend:test": "cd src/backend && mvn test",
-    "backend:package": "cd src/backend && mvn package -DskipTests",
-    "frontend:dev": "npm --prefix src/frontend run dev",
-    "frontend:build": "npm --prefix src/frontend run build"
+    "backend:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 spring-boot:run",
+    "backend:test": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 test",
+    "backend:package": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 package -DskipTests",
+    "frontend:install": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 install",
+    "frontend:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 dev",
+    "frontend:build": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 build",
+    "frontend:lint": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 lint"
   }
 }

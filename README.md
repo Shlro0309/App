@@ -95,8 +95,7 @@ Quy ước của dự án:
 Tạo biến môi trường theo `src/backend/.env.example`, sau đó:
 
 ```bash
-cd src/backend
-mvn spring-boot:run
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 spring-boot:run
 ```
 
 Swagger UI:
@@ -111,8 +110,8 @@ Tạo biến môi trường theo `src/frontend/.env.example`, sau đó:
 
 ```bash
 cd src/frontend
-npm install
-npm run dev
+powershell -NoProfile -ExecutionPolicy Bypass -File ../../config/scripts/frontend-node.ps1 install
+powershell -NoProfile -ExecutionPolicy Bypass -File ../../config/scripts/frontend-node.ps1 dev
 ```
 
 Frontend mặc định:
@@ -240,9 +239,8 @@ Lưu ý: file SQL gốc hiện chỉ chứa schema, không có dữ liệu tài 
 Các lệnh đã chạy thành công:
 
 ```bash
-cd src/backend
-mvn test
-mvn package -DskipTests
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 test
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 package -DskipTests
 ```
 
 Backend đã build thành công và Hibernate validate được schema SQL Server hiện có.
