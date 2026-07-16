@@ -15,18 +15,19 @@ logs/
 .env
 .env.*
 !.env.example
-!backend/.env.example
-!frontend/.env.example
+!src/backend/.env.example
+!src/frontend/.env.example
+!config/*.env.example
 
 # Java / Maven
-backend/target/
+src/backend/target/
 *.class
 
 # Node / Vite
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
-frontend/.eslintcache
+src/frontend/node_modules/
+src/frontend/dist/
+src/frontend/.vite/
+src/frontend/.eslintcache
 
 # Portable local tools
 tools/

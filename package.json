@@ -1,0 +1,11 @@
+{
+  "name": "cyber-game-management",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "backend:test": "cd src/backend && mvn test",
+    "backend:package": "cd src/backend && mvn package -DskipTests",
+    "frontend:dev": "npm --prefix src/frontend run dev",
+    "frontend:build": "npm --prefix src/frontend run build"
+  }
+}

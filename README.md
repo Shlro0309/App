@@ -12,10 +12,28 @@
 
 ```text
 App/
-  backend/
-  frontend/
+  src/
+    backend/
+    frontend/
+  public/
+  tests/
+  config/
+  docs/
+  package.json
+  .gitignore
   README.md
 ```
+
+Ý nghĩa thư mục:
+
+- `src/`: chứa toàn bộ mã nguồn chính của phần mềm.
+- `src/backend/`: mã nguồn backend Spring Boot.
+- `src/frontend/`: mã nguồn frontend React/Vite.
+- `public/`: tài nguyên tĩnh cấp dự án.
+- `tests/`: tài liệu và test tích hợp/e2e cấp dự án trong các giai đoạn sau.
+- `config/`: tài liệu và file cấu hình mẫu cho môi trường triển khai.
+- `docs/`: tài liệu thiết kế, API và ghi chú kiến trúc.
+- `src/frontend/node_modules/`: thư viện frontend do npm quản lý tự động, không commit lên Git.
 
 Backend tuân theo mô hình:
 
@@ -53,10 +71,10 @@ Quy ước của dự án:
 
 ## Chạy Backend
 
-Tạo biến môi trường theo `backend/.env.example`, sau đó:
+Tạo biến môi trường theo `src/backend/.env.example`, sau đó:
 
 ```bash
-cd backend
+cd src/backend
 mvn spring-boot:run
 ```
 
@@ -68,10 +86,10 @@ http://localhost:8080/api/swagger-ui.html
 
 ## Chạy Frontend
 
-Tạo biến môi trường theo `frontend/.env.example`, sau đó:
+Tạo biến môi trường theo `src/frontend/.env.example`, sau đó:
 
 ```bash
-cd frontend
+cd src/frontend
 npm install
 npm run dev
 ```
@@ -143,11 +161,65 @@ GET  /api/auth/me
 
 Lưu ý: refresh token hiện được xử lý stateless bằng JWT vì dự án không được bổ sung bảng lưu token.
 
+### Giai đoạn 4: User Management
+
+Đã hoàn thành:
+
+- Tạo module quản lý tài khoản theo mô hình `Controller -> Service -> Repository`.
+- Tạo `UserManagementController` cho nhóm API `/api/users`.
+- Tạo `UserManagementService` và `UserManagementServiceImpl` để xử lý nghiệp vụ quản lý tài khoản.
+- Tạo DTO riêng cho tạo tài khoản, cập nhật thông tin, cập nhật role, cập nhật trạng thái và response tài khoản.
+- Tạo `UserMapper` bằng MapStruct để chuyển Entity sang DTO, không trả Entity trực tiếp ra API.
+- Mở rộng `UserRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
+- Tạo `UserSpecifications` để lọc theo từ khóa, role và trạng thái tài khoản.
+- API quản lý tài khoản yêu cầu role `ADMIN` bằng `@PreAuthorize("hasRole('ADMIN')")`.
+- Khi tạo tài khoản role `CUSTOMER`, hệ thống tạo hồ sơ khách hàng tối thiểu trong bảng `khachHang`.
+- Khi tạo tài khoản role `EMPLOYEE`, hệ thống tạo hồ sơ nhân viên tối thiểu trong bảng `nhanVien`.
+- API xóa tài khoản được xử lý theo hướng khóa tài khoản (`LOCKED`) thay vì xóa vật lý để giữ an toàn dữ liệu lịch sử.
+- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+
+Các API User Management hiện có:
+
+```text
+GET    /api/users
+GET    /api/users/{id}
+POST   /api/users
+PUT    /api/users/{id}
+PATCH  /api/users/{id}/status
+PATCH  /api/users/{id}/role
+DELETE /api/users/{id}
+GET    /api/users/roles
+```
+
+Các tham số hỗ trợ cho `GET /api/users`:
+
+```text
+keyword: tìm theo username, họ tên, số điện thoại, email
+role: ADMIN, EMPLOYEE, CUSTOMER
+status: ACTIVE, LOCKED
+page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
+```
+
+Lưu ý: file SQL gốc hiện chỉ chứa schema, không có dữ liệu tài khoản admin mẫu. Để dùng các API quản trị, database cần có sẵn ít nhất một tài khoản role `ADMIN` hoặc cần bootstrap dữ liệu admin ban đầu bằng quy trình triển khai riêng.
+
+### Điều chỉnh cấu trúc thư mục
+
+Đã hoàn thành:
+
+- Chuyển cấu trúc project sang dạng `src`, `public`, `tests`, `config`, `docs` theo mẫu thư mục chuẩn.
+- Di chuyển backend từ `backend/` sang `src/backend/`.
+- Di chuyển frontend từ `frontend/` sang `src/frontend/`.
+- Cập nhật `.gitignore` theo đường dẫn mới để không commit `.env`, `target`, `node_modules`, `dist`.
+- Thêm `package.json` ở root để gom các script chạy nhanh cho backend và frontend.
+- Thêm README ngắn trong `docs`, `config`, `tests`, `public` để giải thích vai trò từng thư mục.
+- Không thay đổi package Java, cấu trúc module Spring Boot, cấu trúc source React hoặc schema database.
+
 ## Kiểm thử hiện tại
 
 Các lệnh đã chạy thành công:
 
 ```bash
+cd src/backend
 mvn test
 mvn package -DskipTests
 ```
@@ -156,11 +228,10 @@ Backend đã build thành công và Hibernate validate được schema SQL Serve
 
 ## Giai đoạn tiếp theo
 
-Giai đoạn kế tiếp sẽ là User Management:
+Giai đoạn kế tiếp sẽ là Machine Management:
 
-- Quản lý tài khoản.
-- Lấy danh sách tài khoản có phân trang, sắp xếp, tìm kiếm.
-- Xem chi tiết tài khoản.
-- Cập nhật thông tin tài khoản.
-- Khóa/mở khóa tài khoản.
-- Phân quyền theo role `ADMIN`, `EMPLOYEE`, `CUSTOMER`.
+- Quản lý danh sách máy.
+- Tìm kiếm, lọc theo khu vực và trạng thái máy.
+- Thêm, sửa, khóa hoặc chuyển trạng thái máy.
+- Quản lý cấu hình, vị trí máy và khu vực.
+- Chuẩn bị dữ liệu cho sơ đồ phòng máy ở frontend.
