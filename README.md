@@ -222,6 +222,44 @@ page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
 
 Lưu ý: file SQL gốc hiện chỉ chứa schema, không có dữ liệu tài khoản admin mẫu. Để dùng các API quản trị, database cần có sẵn ít nhất một tài khoản role `ADMIN` hoặc cần bootstrap dữ liệu admin ban đầu bằng quy trình triển khai riêng.
 
+### Giai đoạn 5: Machine Management
+
+Đã hoàn thành:
+
+- Tạo module quản lý máy theo mô hình `Controller -> Service -> Repository`.
+- Tạo `MachineManagementController` cho nhóm API `/api/machines`.
+- Tạo `MachineManagementService` và `MachineManagementServiceImpl` để xử lý nghiệp vụ quản lý máy.
+- Tạo DTO riêng cho tạo máy, cập nhật máy, cập nhật trạng thái và response máy.
+- Tạo `MachineMapper` bằng MapStruct để chuyển Entity sang DTO, không trả Entity trực tiếp ra API.
+- Mở rộng `MachineRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
+- Tạo `MachineSpecifications` để lọc theo từ khóa, khu vực và trạng thái máy.
+- API thêm, sửa, đổi trạng thái và khóa máy yêu cầu role `ADMIN` bằng `@PreAuthorize("hasRole('ADMIN')")`.
+- API xóa máy được xử lý theo hướng chuyển trạng thái sang `OFFLINE` thay vì xóa vật lý để giữ an toàn dữ liệu lịch sử.
+- Bổ sung API danh sách khu vực và danh sách trạng thái máy để frontend dùng cho bộ lọc/form.
+- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+
+Các API Machine Management hiện có:
+
+```text
+GET    /api/machines
+GET    /api/machines/{id}
+POST   /api/machines
+PUT    /api/machines/{id}
+PATCH  /api/machines/{id}/status
+DELETE /api/machines/{id}
+GET    /api/machines/areas
+GET    /api/machines/statuses
+```
+
+Các tham số hỗ trợ cho `GET /api/machines`:
+
+```text
+keyword: tìm theo tên máy, CPU, GPU, độ phân giải, tên khu vực
+areaId: lọc theo khu vực
+status: AVAILABLE, RESERVED, PLAYING, MAINTENANCE, OFFLINE
+page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
+```
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -241,16 +279,19 @@ Các lệnh đã chạy thành công:
 ```bash
 powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 test
 powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 package -DskipTests
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 install
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 build
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 lint
 ```
 
-Backend đã build thành công và Hibernate validate được schema SQL Server hiện có.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`.
 
 ## Giai đoạn tiếp theo
 
-Giai đoạn kế tiếp sẽ là Machine Management:
+Giai đoạn kế tiếp sẽ là frontend cho Machine Management và chuẩn bị dữ liệu hiển thị phòng máy:
 
-- Quản lý danh sách máy.
-- Tìm kiếm, lọc theo khu vực và trạng thái máy.
-- Thêm, sửa, khóa hoặc chuyển trạng thái máy.
-- Quản lý cấu hình, vị trí máy và khu vực.
-- Chuẩn bị dữ liệu cho sơ đồ phòng máy ở frontend.
+- Tạo trang danh sách máy và bộ lọc theo khu vực/trạng thái.
+- Tạo form thêm, sửa và đổi trạng thái máy.
+- Kết nối frontend với các API `/api/machines`.
+- Chuẩn bị layout/sơ đồ phòng máy dựa trên dữ liệu máy và khu vực.
+- Bổ sung kiểm thử tích hợp/e2e khi frontend quản lý máy hoàn thiện.
