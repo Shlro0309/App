@@ -13,7 +13,7 @@ import {
 const navigationItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
   { label: "Máy trạm", path: "/machines", icon: Monitor },
-  { label: "Đặt máy", icon: CalendarClock },
+  { label: "Đặt máy", path: "/reservations", icon: CalendarClock },
   { label: "Phiên chơi", icon: Timer },
   { label: "Dịch vụ", icon: Utensils },
   { label: "Thanh toán", icon: Receipt },

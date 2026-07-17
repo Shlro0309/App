@@ -135,8 +135,8 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 5 | Authentication | Đã hoàn thành |
 | 6 | User Management | Đã hoàn thành |
 | 7 | Machine Management | Đã hoàn thành backend, đã bổ sung frontend quản lý máy ở workspace hiện tại |
-| 8 | Reservation | Giai đoạn tiếp theo |
-| 9 | Play Session | Chưa thực hiện |
+| 8 | Reservation | Đã hoàn thành backend, đã bổ sung frontend quản lý đặt máy ở workspace hiện tại |
+| 9 | Play Session | Giai đoạn tiếp theo |
 | 10 | Food Service | Chưa thực hiện |
 | 11 | Payment | Chưa thực hiện |
 | 12 | Dashboard | Mới có giao diện nền ban đầu |
@@ -297,6 +297,57 @@ Frontend Machine Management hiện có:
 - Kết nối frontend với các API `/api/machines`, `/api/machines/areas` và `/api/machines/statuses`.
 - Sidebar đã có điều hướng thật cho Dashboard và Máy trạm; các module chưa làm được để trạng thái chưa hoạt động để tránh vào route lỗi.
 
+### Giai đoạn 6: Reservation
+
+Đã hoàn thành:
+
+- Tạo module đặt máy theo mô hình `Controller -> Service -> Repository`.
+- Tạo `ReservationController` cho nhóm API `/api/reservations`.
+- Tạo `ReservationService` và `ReservationServiceImpl` để xử lý nghiệp vụ đặt máy.
+- Tạo DTO riêng cho tạo đặt máy, cập nhật trạng thái và response đặt máy.
+- Tạo `ReservationMapper` bằng MapStruct để chuyển Entity sang DTO, không trả Entity trực tiếp ra API.
+- Mở rộng `ReservationRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
+- Tạo `ReservationSpecifications` để lọc theo từ khóa, khách hàng và trạng thái đặt máy.
+- Khi tạo đặt máy, hệ thống chỉ nhận máy đang `AVAILABLE`, kiểm tra trùng đặt máy active và chuyển máy sang `RESERVED`.
+- Khi hủy hoặc đóng đặt máy bằng trạng thái kết thúc, hệ thống giải phóng máy về `AVAILABLE` nếu máy còn đang `RESERVED`.
+- Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/tạo/hủy theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được cập nhật trạng thái đặt máy.
+- Khách hàng chỉ được xem, tạo và hủy đặt máy của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
+- Bổ sung API danh sách máy còn trống để frontend chọn máy khi tạo đặt máy.
+- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+
+Các API Reservation hiện có:
+
+```text
+GET   /api/reservations
+GET   /api/reservations/{id}
+POST  /api/reservations
+PATCH /api/reservations/{id}/status
+PATCH /api/reservations/{id}/cancel
+GET   /api/reservations/available-machines
+GET   /api/reservations/statuses
+```
+
+Các tham số hỗ trợ cho `GET /api/reservations`:
+
+```text
+keyword: tìm theo tên khách hàng, số điện thoại, email, tên máy
+customerId: lọc theo khách hàng
+status: PENDING, CONFIRMED, CANCELLED, EXPIRED, COMPLETED
+page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
+```
+
+Frontend Reservation hiện có:
+
+- Tạo route `/reservations` trong React Router.
+- Bật điều hướng thật cho mục Đặt máy trên sidebar/header.
+- Tạo trang quản lý đặt máy với thống kê nhanh theo trạng thái.
+- Tạo bộ lọc theo từ khóa, khách hàng và trạng thái.
+- Tạo bảng danh sách đặt máy có phân trang.
+- Tạo form đặt máy, chọn một hoặc nhiều máy còn trống từ API `/api/reservations/available-machines`.
+- Cho phép cập nhật trạng thái đặt máy trực tiếp từ bảng.
+- Cho phép hủy đặt máy khi đặt máy chưa ở trạng thái kết thúc.
+- Kết nối frontend với các API `/api/reservations`, `/api/reservations/statuses` và `/api/reservations/available-machines`.
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -311,14 +362,14 @@ Frontend Machine Management hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines` và `/reservations` đã được bổ sung vào React Router; `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Reservation:
+Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Play Session:
 
-- Thiết kế API đặt máy dựa trên schema `datCho` và bảng liên kết `datCho_mayTram`.
-- Cho khách hàng xem máy còn trống theo khu vực và trạng thái.
-- Cho phép đặt một hoặc nhiều máy.
-- Cho phép hủy đặt máy và chuẩn bị luồng gia hạn.
-- Chuẩn bị dữ liệu cho sơ đồ phòng máy và luồng check-in ở module Play Session.
+- Thiết kế API bắt đầu phiên chơi dựa trên schema `phienChoi`.
+- Cho phép check-in từ đặt máy đã xác nhận.
+- Cập nhật trạng thái máy khi bắt đầu/kết thúc phiên chơi.
+- Tính thời lượng sử dụng và chuẩn bị dữ liệu cho Payment.
+- Chuẩn bị realtime trạng thái máy cho module WebSocket ở giai đoạn sau.
