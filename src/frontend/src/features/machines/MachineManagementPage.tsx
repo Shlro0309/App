@@ -54,11 +54,11 @@ const emptyForm: MachineFormValues = {
 };
 
 const statusLabels: Record<MachineStatus, string> = {
-  AVAILABLE: "San sang",
-  RESERVED: "Da dat",
-  PLAYING: "Dang choi",
-  MAINTENANCE: "Bao tri",
-  OFFLINE: "Ngoai tuyen",
+  AVAILABLE: "Sẵn sàng",
+  RESERVED: "Đã đặt",
+  PLAYING: "Đang chơi",
+  MAINTENANCE: "Bảo trì",
+  OFFLINE: "Ngoại tuyến",
 };
 
 const statusClassNames: Record<MachineStatus, string> = {
@@ -76,7 +76,7 @@ function getErrorMessage(error: unknown) {
       return data.message;
     }
     if (error.response?.status === 401 || error.response?.status === 403) {
-      return "Phien dang nhap khong co quyen truy cap module may tram.";
+      return "Phiên đăng nhập không có quyền truy cập module máy trạm.";
     }
   }
 
@@ -84,7 +84,7 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
 
-  return "Khong the xu ly yeu cau hien tai.";
+  return "Không thể xử lý yêu cầu hiện tại.";
 }
 
 function toFormValues(machine: Machine): MachineFormValues {
@@ -155,7 +155,7 @@ function MachineForm({
       onSubmit={handleSubmit}
     >
       <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Ten may</span>
+        <span className="text-muted-foreground">Tên máy</span>
         <input
           className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
           maxLength={20}
@@ -166,14 +166,14 @@ function MachineForm({
       </label>
 
       <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Khu vuc</span>
+        <span className="text-muted-foreground">Khu vực</span>
         <select
           className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
           required
           value={values.areaId}
           onChange={(event) => updateField("areaId", event.target.value)}
         >
-          <option value="">Chon khu vuc</option>
+          <option value="">Chọn khu vực</option>
           {areas.map((area) => (
             <option key={area.id} value={area.id}>
               {area.name}
@@ -183,7 +183,7 @@ function MachineForm({
       </label>
 
       <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Gia theo gio</span>
+        <span className="text-muted-foreground">Giá theo giờ</span>
         <input
           className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
           min={0}
@@ -196,7 +196,7 @@ function MachineForm({
       </label>
 
       <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Trang thai</span>
+        <span className="text-muted-foreground">Trạng thái</span>
         <select
           className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary disabled:opacity-60"
           disabled={mode === "edit"}
@@ -256,7 +256,7 @@ function MachineForm({
       </label>
 
       <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Do phan giai</span>
+        <span className="text-muted-foreground">Độ phân giải</span>
         <input
           className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
           maxLength={20}
@@ -272,7 +272,7 @@ function MachineForm({
           type="submit"
         >
           <CheckCircle2 className="size-4" />
-          {saving ? "Dang luu" : mode === "create" ? "Them may" : "Luu may"}
+          {saving ? "Đang lưu" : mode === "create" ? "Thêm máy" : "Lưu máy"}
         </button>
         <button
           className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -280,7 +280,7 @@ function MachineForm({
           onClick={onCancel}
         >
           <X className="size-4" />
-          Huy
+          Hủy
         </button>
       </div>
     </form>
@@ -403,11 +403,11 @@ export function MachineManagementPage() {
     try {
       if (formMode === "create") {
         await createMachine(formValues);
-        setSuccess("Da them may moi.");
+        setSuccess("Đã thêm máy mới.");
       }
       if (formMode === "edit" && editingId != null) {
         await updateMachine(editingId, formValues);
-        setSuccess("Da cap nhat may.");
+        setSuccess("Đã cập nhật máy.");
       }
       closeForm();
       await loadMachines(filters);
@@ -424,7 +424,7 @@ export function MachineManagementPage() {
     setSuccess(null);
     try {
       await updateMachineStatus(machine.id, status);
-      setSuccess(`Da cap nhat trang thai ${machine.name}.`);
+      setSuccess(`Đã cập nhật trạng thái ${machine.name}.`);
       await loadMachines(filters);
     } catch (statusError) {
       setError(getErrorMessage(statusError));
@@ -439,7 +439,7 @@ export function MachineManagementPage() {
     setSuccess(null);
     try {
       await setMachineOffline(machine.id);
-      setSuccess(`Da chuyen ${machine.name} sang ngoai tuyen.`);
+      setSuccess(`Đã chuyển ${machine.name} sang ngoại tuyến.`);
       await loadMachines(filters);
     } catch (deleteError) {
       setError(getErrorMessage(deleteError));
@@ -458,8 +458,8 @@ export function MachineManagementPage() {
     <section className="mx-auto grid max-w-7xl gap-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-medium text-primary">Machine Management</p>
-          <h2 className="mt-1 text-2xl font-semibold">Quan ly may tram</h2>
+          <p className="text-sm font-medium text-primary">Quản lý máy</p>
+          <h2 className="mt-1 text-2xl font-semibold">Quản lý máy trạm</h2>
         </div>
         <div className="flex gap-2">
           <button
@@ -468,7 +468,7 @@ export function MachineManagementPage() {
             onClick={() => loadMachines(filters)}
           >
             <RefreshCw className="size-4" />
-            Tai lai
+            Tải lại
           </button>
           <button
             className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90"
@@ -476,7 +476,7 @@ export function MachineManagementPage() {
             onClick={openCreateForm}
           >
             <Plus className="size-4" />
-            Them may
+            Thêm máy
           </button>
         </div>
       </div>
@@ -484,7 +484,7 @@ export function MachineManagementPage() {
       <div className="grid gap-3 md:grid-cols-5">
         <div className="rounded-md border bg-background p-4 md:col-span-1">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tong may</span>
+            <span className="text-sm text-muted-foreground">Tổng máy</span>
             <Monitor className="size-4 text-primary" />
           </div>
           <p className="text-2xl font-semibold">{page?.totalElements ?? 0}</p>
@@ -514,7 +514,7 @@ export function MachineManagementPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               className="h-10 w-full rounded-md border bg-background pl-10 pr-3 text-sm outline-none transition focus:border-primary"
-              placeholder="Tim ten may, CPU, GPU, khu vuc"
+              placeholder="Tìm tên máy, CPU, GPU, khu vực"
               value={filters.keyword}
               onChange={(event) =>
                 updateFilters({ keyword: event.target.value })
@@ -527,7 +527,7 @@ export function MachineManagementPage() {
             value={filters.areaId}
             onChange={(event) => updateFilters({ areaId: event.target.value })}
           >
-            <option value="">Tat ca khu vuc</option>
+            <option value="">Tất cả khu vực</option>
             {areas.map((area) => (
               <option key={area.id} value={area.id}>
                 {area.name}
@@ -540,7 +540,7 @@ export function MachineManagementPage() {
             value={filters.status}
             onChange={(event) => updateFilters({ status: event.target.value })}
           >
-            <option value="">Tat ca trang thai</option>
+            <option value="">Tất cả trạng thái</option>
             {statuses.map((status) => (
               <option key={status} value={status}>
                 {statusLabels[status] ?? status}
@@ -553,7 +553,7 @@ export function MachineManagementPage() {
             type="submit"
           >
             <Search className="size-4" />
-            Loc
+            Lọc
           </button>
         </form>
 
@@ -588,13 +588,13 @@ export function MachineManagementPage() {
           <table className="w-full min-w-[980px] border-collapse text-sm">
             <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 font-medium">May</th>
-                <th className="px-4 py-3 font-medium">Khu vuc</th>
-                <th className="px-4 py-3 font-medium">Cau hinh</th>
-                <th className="px-4 py-3 font-medium">Gia</th>
-                <th className="px-4 py-3 font-medium">Trang thai</th>
-                <th className="px-4 py-3 font-medium">Cap nhat</th>
-                <th className="px-4 py-3 text-right font-medium">Thao tac</th>
+                <th className="px-4 py-3 font-medium">Máy</th>
+                <th className="px-4 py-3 font-medium">Khu vực</th>
+                <th className="px-4 py-3 font-medium">Cấu hình</th>
+                <th className="px-4 py-3 font-medium">Giá</th>
+                <th className="px-4 py-3 font-medium">Trạng thái</th>
+                <th className="px-4 py-3 font-medium">Cập nhật</th>
+                <th className="px-4 py-3 text-right font-medium">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -604,7 +604,7 @@ export function MachineManagementPage() {
                     className="px-4 py-10 text-center text-muted-foreground"
                     colSpan={7}
                   >
-                    Dang tai du lieu may tram
+                    Đang tải dữ liệu máy trạm
                   </td>
                 </tr>
               )}
@@ -615,7 +615,7 @@ export function MachineManagementPage() {
                     className="px-4 py-10 text-center text-muted-foreground"
                     colSpan={7}
                   >
-                    Khong co may phu hop bo loc
+                    Không có máy phù hợp bộ lọc
                   </td>
                 </tr>
               )}
@@ -631,9 +631,9 @@ export function MachineManagementPage() {
                     </td>
                     <td className="px-4 py-4">{machine.areaName}</td>
                     <td className="px-4 py-4">
-                      <div>{machine.cpu ?? "Chua co CPU"}</div>
+                      <div>{machine.cpu ?? "Chưa có CPU"}</div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {machine.gpu ?? "Chua co GPU"} -{" "}
+                        {machine.gpu ?? "Chưa có GPU"} -{" "}
                         {machine.ram == null ? "RAM N/A" : `${machine.ram}GB`} -{" "}
                         {machine.fps == null ? "FPS N/A" : `${machine.fps} FPS`} -{" "}
                         {machine.resolution ?? "N/A"}
@@ -668,7 +668,7 @@ export function MachineManagementPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                          title="Sua may"
+                          title="Sửa máy"
                           type="button"
                           onClick={() => openEditForm(machine)}
                         >
@@ -676,7 +676,7 @@ export function MachineManagementPage() {
                         </button>
                         <button
                           className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10"
-                          title="Chuyen ngoai tuyen"
+                          title="Chuyển ngoại tuyến"
                           type="button"
                           onClick={() => markOffline(machine)}
                         >
@@ -702,7 +702,7 @@ export function MachineManagementPage() {
               onClick={() => goToPage(Math.max((page?.number ?? 0) - 1, 0))}
             >
               <ChevronLeft className="size-4" />
-              Truoc
+              Trước
             </button>
             <button
               className="inline-flex h-9 items-center gap-2 rounded-md border px-3 transition hover:bg-muted disabled:opacity-50"

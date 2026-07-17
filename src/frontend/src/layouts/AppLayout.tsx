@@ -12,12 +12,12 @@ import {
 
 const navigationItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
-  { label: "May tram", path: "/machines", icon: Monitor },
-  { label: "Dat may", icon: CalendarClock },
-  { label: "Phien choi", icon: Timer },
-  { label: "Dich vu", icon: Utensils },
-  { label: "Thanh toan", icon: Receipt },
-  { label: "Bao cao", icon: BarChart3 },
+  { label: "Máy trạm", path: "/machines", icon: Monitor },
+  { label: "Đặt máy", icon: CalendarClock },
+  { label: "Phiên chơi", icon: Timer },
+  { label: "Dịch vụ", icon: Utensils },
+  { label: "Thanh toán", icon: Receipt },
+  { label: "Báo cáo", icon: BarChart3 },
 ];
 
 export function AppLayout() {
