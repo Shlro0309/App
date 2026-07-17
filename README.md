@@ -311,16 +311,6 @@ Frontend Machine Management hiện có:
 
 ## Kiểm thử hiện tại
 
-Các lệnh đã chạy thành công:
-
-```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 test
-powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 package -DskipTests
-powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 install
-powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 build
-powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 lint
-```
-
 Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
 
 ## Giai đoạn tiếp theo
