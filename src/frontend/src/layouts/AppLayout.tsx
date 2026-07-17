@@ -1,37 +1,117 @@
-import { Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
+import {
+  BarChart3,
+  CalendarClock,
+  LayoutDashboard,
+  Monitor,
+  Receipt,
+  ScrollText,
+  Timer,
+  Utensils,
+} from "lucide-react";
 
 const navigationItems = [
-  "Dashboard",
-  "Máy trạm",
-  "Đặt máy",
-  "Phiên chơi",
-  "Dịch vụ",
-  "Thanh toán",
-  "Báo cáo",
+  { label: "Dashboard", path: "/", icon: LayoutDashboard },
+  { label: "May tram", path: "/machines", icon: Monitor },
+  { label: "Dat may", icon: CalendarClock },
+  { label: "Phien choi", icon: Timer },
+  { label: "Dich vu", icon: Utensils },
+  { label: "Thanh toan", icon: Receipt },
+  { label: "Bao cao", icon: BarChart3 },
 ];
 
 export function AppLayout() {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.16),transparent_32%),hsl(var(--background))]">
+    <div className="min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-background/80 p-4 backdrop-blur xl:block">
-        <div className="mb-8">
-          <p className="text-sm font-medium text-primary">Cyber Game</p>
-          <h1 className="text-xl font-semibold">Management</h1>
+        <div className="mb-8 flex items-center gap-3">
+          <div className="grid size-10 place-items-center rounded-md border bg-muted">
+            <ScrollText className="size-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-primary">Cyber Game</p>
+            <h1 className="text-xl font-semibold">Management</h1>
+          </div>
         </div>
         <nav className="space-y-1">
           {navigationItems.map((item) => (
-            <button
-              key={item}
-              className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              type="button"
-            >
-              {item}
-            </button>
+            item.path ? (
+              <NavLink
+                key={item.label}
+                className={({ isActive }) =>
+                  [
+                    "flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition",
+                    isActive
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ].join(" ")
+                }
+                end={item.path === "/"}
+                to={item.path}
+              >
+                <item.icon className="size-4" />
+                <span>{item.label}</span>
+              </NavLink>
+            ) : (
+              <button
+                className="flex h-10 w-full cursor-not-allowed items-center gap-3 rounded-md px-3 text-sm text-muted-foreground/55"
+                disabled
+                key={item.label}
+                type="button"
+              >
+                <item.icon className="size-4" />
+                <span>{item.label}</span>
+              </button>
+            )
           ))}
         </nav>
       </aside>
 
-      <main className="min-h-screen px-4 py-5 xl:pl-72">
+      <header className="sticky top-0 z-10 border-b bg-background/95 px-4 py-3 backdrop-blur xl:hidden">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="grid size-9 place-items-center rounded-md border bg-muted">
+            <ScrollText className="size-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-primary">Cyber Game</p>
+            <h1 className="text-lg font-semibold">Management</h1>
+          </div>
+        </div>
+        <nav className="flex gap-2 overflow-x-auto pb-1">
+          {navigationItems.map((item) => (
+            item.path ? (
+              <NavLink
+                key={item.label}
+                className={({ isActive }) =>
+                  [
+                    "flex h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-sm transition",
+                    isActive
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-muted-foreground",
+                  ].join(" ")
+                }
+                end={item.path === "/"}
+                to={item.path}
+              >
+                <item.icon className="size-4" />
+                <span>{item.label}</span>
+              </NavLink>
+            ) : (
+              <button
+                className="flex h-9 shrink-0 cursor-not-allowed items-center gap-2 rounded-md border border-border px-3 text-sm text-muted-foreground/55"
+                disabled
+                key={item.label}
+                type="button"
+              >
+                <item.icon className="size-4" />
+                <span>{item.label}</span>
+              </button>
+            )
+          ))}
+        </nav>
+      </header>
+
+      <main className="min-h-screen px-4 py-5 xl:pl-72 xl:pr-6">
         <Outlet />
       </main>
     </div>

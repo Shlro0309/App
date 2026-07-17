@@ -122,6 +122,31 @@ http://localhost:5173
 
 ## Tiến độ phát triển
 
+### Lộ trình tổng thể theo yêu cầu
+
+Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
+
+| Bước | Module | Trạng thái |
+| --- | --- | --- |
+| 1 | Khởi tạo project | Đã hoàn thành |
+| 2 | Cấu hình Spring Boot | Đã hoàn thành |
+| 3 | Kết nối SQL Server | Đã hoàn thành |
+| 4 | Spring Security + JWT | Đã hoàn thành |
+| 5 | Authentication | Đã hoàn thành |
+| 6 | User Management | Đã hoàn thành |
+| 7 | Machine Management | Đã hoàn thành backend, đã bổ sung frontend quản lý máy ở workspace hiện tại |
+| 8 | Reservation | Giai đoạn tiếp theo |
+| 9 | Play Session | Chưa thực hiện |
+| 10 | Food Service | Chưa thực hiện |
+| 11 | Payment | Chưa thực hiện |
+| 12 | Dashboard | Mới có giao diện nền ban đầu |
+| 13 | Reports | Chưa thực hiện |
+| 14 | Frontend | Đang phát triển theo từng module |
+| 15 | WebSocket | Chưa thực hiện |
+| 16 | Testing | Đã có kiểm tra build/lint cơ bản, chưa có test tích hợp/e2e đầy đủ |
+
+Các module đã hoàn thành vẫn tuân thủ quy tắc chính của file yêu cầu: không thay đổi schema database, backend theo mô hình `Controller -> Service -> Repository`, API trả DTO thay vì Entity, dùng MapStruct, validation và phân quyền theo role.
+
 ### Giai đoạn 1: Khởi tạo dự án và cấu hình nền tảng
 
 Đã hoàn thành:
@@ -260,6 +285,18 @@ status: AVAILABLE, RESERVED, PLAYING, MAINTENANCE, OFFLINE
 page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
 ```
 
+Frontend Machine Management hiện có:
+
+- Tạo route `/machines` trong React Router.
+- Tạo trang quản lý máy với thống kê nhanh theo trạng thái.
+- Tạo bộ lọc theo từ khóa, khu vực và trạng thái.
+- Tạo bảng danh sách máy có phân trang.
+- Tạo form thêm máy và sửa thông tin máy.
+- Cho phép đổi trạng thái máy trực tiếp từ bảng.
+- Cho phép chuyển máy sang `OFFLINE` theo API xóa mềm của backend.
+- Kết nối frontend với các API `/api/machines`, `/api/machines/areas` và `/api/machines/statuses`.
+- Sidebar đã có điều hướng thật cho Dashboard và Máy trạm; các module chưa làm được để trạng thái chưa hoạt động để tránh vào route lỗi.
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -284,14 +321,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node
 powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 lint
 ```
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
 
 ## Giai đoạn tiếp theo
 
-Giai đoạn kế tiếp sẽ là frontend cho Machine Management và chuẩn bị dữ liệu hiển thị phòng máy:
+Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Reservation:
 
-- Tạo trang danh sách máy và bộ lọc theo khu vực/trạng thái.
-- Tạo form thêm, sửa và đổi trạng thái máy.
-- Kết nối frontend với các API `/api/machines`.
-- Chuẩn bị layout/sơ đồ phòng máy dựa trên dữ liệu máy và khu vực.
-- Bổ sung kiểm thử tích hợp/e2e khi frontend quản lý máy hoàn thiện.
+- Thiết kế API đặt máy dựa trên schema `datCho` và bảng liên kết `datCho_mayTram`.
+- Cho khách hàng xem máy còn trống theo khu vực và trạng thái.
+- Cho phép đặt một hoặc nhiều máy.
+- Cho phép hủy đặt máy và chuẩn bị luồng gia hạn.
+- Chuẩn bị dữ liệu cho sơ đồ phòng máy và luồng check-in ở module Play Session.
