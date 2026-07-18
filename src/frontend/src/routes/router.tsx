@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { MachineManagementPage } from "@/features/machines/MachineManagementPage";
+import { PlaySessionManagementPage } from "@/features/play-sessions/PlaySessionManagementPage";
 import { ReservationManagementPage } from "@/features/reservations/ReservationManagementPage";
 
 export const router = createBrowserRouter([
@@ -20,6 +21,10 @@ export const router = createBrowserRouter([
       {
         path: "reservations",
         element: <ReservationManagementPage />,
+      },
+      {
+        path: "play-sessions",
+        element: <PlaySessionManagementPage />,
       },
     ],
   },

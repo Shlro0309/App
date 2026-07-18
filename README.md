@@ -136,8 +136,8 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 6 | User Management | Đã hoàn thành |
 | 7 | Machine Management | Đã hoàn thành backend, đã bổ sung frontend quản lý máy ở workspace hiện tại |
 | 8 | Reservation | Đã hoàn thành backend, đã bổ sung frontend quản lý đặt máy ở workspace hiện tại |
-| 9 | Play Session | Giai đoạn tiếp theo |
-| 10 | Food Service | Chưa thực hiện |
+| 9 | Play Session | Đã hoàn thành backend, đã bổ sung frontend quản lý phiên chơi ở workspace hiện tại |
+| 10 | Food Service | Giai đoạn tiếp theo |
 | 11 | Payment | Chưa thực hiện |
 | 12 | Dashboard | Mới có giao diện nền ban đầu |
 | 13 | Reports | Chưa thực hiện |
@@ -348,6 +348,60 @@ Frontend Reservation hiện có:
 - Cho phép hủy đặt máy khi đặt máy chưa ở trạng thái kết thúc.
 - Kết nối frontend với các API `/api/reservations`, `/api/reservations/statuses` và `/api/reservations/available-machines`.
 
+### Giai đoạn 7: Play Session
+
+Đã hoàn thành:
+
+- Tạo module phiên chơi theo mô hình `Controller -> Service -> Repository`.
+- Tạo `PlaySessionController` cho nhóm API `/api/play-sessions`.
+- Tạo `PlaySessionService` và `PlaySessionServiceImpl` để xử lý nghiệp vụ bắt đầu, check-in, kết thúc và hủy phiên chơi.
+- Tạo DTO riêng cho bắt đầu phiên trực tiếp, check-in từ đặt máy và response phiên chơi.
+- Tạo `PlaySessionMapper` bằng MapStruct để chuyển Entity sang DTO, không trả Entity trực tiếp ra API.
+- Mở rộng `PlaySessionRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
+- Tạo `PlaySessionSpecifications` để lọc theo từ khóa, khách hàng, máy và trạng thái phiên chơi.
+- Cho phép bắt đầu phiên trực tiếp trên máy đang `AVAILABLE`; khi bắt đầu phiên, máy chuyển sang `PLAYING`.
+- Cho phép check-in từ reservation đã `CONFIRMED`; hệ thống kiểm tra reservation chưa hết hạn, máy thuộc reservation và máy đang `RESERVED`.
+- Khi kết thúc phiên, hệ thống tính `tongTienGio` theo số phút sử dụng và `giaTheoGio`, chuyển phiên sang `COMPLETED`, đồng thời giải phóng máy về `AVAILABLE`.
+- Khi hủy phiên, hệ thống chuyển phiên sang `CANCELLED`, đặt tiền giờ bằng `0` và giải phóng máy về `AVAILABLE`.
+- Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/bắt đầu/kết thúc theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được hủy phiên.
+- Khách hàng chỉ được xem và thao tác phiên chơi của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
+- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+
+Các API Play Session hiện có:
+
+```text
+GET   /api/play-sessions
+GET   /api/play-sessions/{id}
+POST  /api/play-sessions
+POST  /api/play-sessions/from-reservation
+PATCH /api/play-sessions/{id}/end
+PATCH /api/play-sessions/{id}/cancel
+GET   /api/play-sessions/statuses
+```
+
+Các tham số hỗ trợ cho `GET /api/play-sessions`:
+
+```text
+keyword: tìm theo tên khách hàng, số điện thoại, email, tên máy, khu vực
+customerId: lọc theo khách hàng
+machineId: lọc theo máy
+status: ACTIVE, COMPLETED, CANCELLED
+page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
+```
+
+Frontend Play Session hiện có:
+
+- Tạo route `/play-sessions` trong React Router.
+- Bật điều hướng thật cho mục Phiên chơi trên sidebar/header.
+- Tạo trang quản lý phiên chơi với thống kê nhanh theo trạng thái.
+- Tạo bộ lọc theo từ khóa, khách hàng, máy và trạng thái.
+- Tạo bảng danh sách phiên chơi có phân trang.
+- Tạo form bắt đầu phiên trực tiếp bằng mã khách hàng và mã máy.
+- Tạo form check-in từ đặt máy bằng mã đặt máy và danh sách mã máy.
+- Cho phép kết thúc phiên active trực tiếp từ bảng.
+- Cho phép hủy phiên active trực tiếp từ bảng cho tài khoản có quyền.
+- Kết nối frontend với các API `/api/play-sessions`, `/api/play-sessions/statuses` và `/api/play-sessions/from-reservation`.
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -362,14 +416,14 @@ Frontend Reservation hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines` và `/reservations` đã được bổ sung vào React Router; `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines`, `/reservations` và `/play-sessions` đã được bổ sung vào React Router; `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Play Session:
+Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Food Service:
 
-- Thiết kế API bắt đầu phiên chơi dựa trên schema `phienChoi`.
-- Cho phép check-in từ đặt máy đã xác nhận.
-- Cập nhật trạng thái máy khi bắt đầu/kết thúc phiên chơi.
-- Tính thời lượng sử dụng và chuẩn bị dữ liệu cho Payment.
-- Chuẩn bị realtime trạng thái máy cho module WebSocket ở giai đoạn sau.
+- Thiết kế API quản lý dịch vụ/đồ ăn dựa trên schema hiện có.
+- Cho phép quản lý danh sách dịch vụ và trạng thái khả dụng.
+- Cho phép tạo đơn gọi món gắn với khách hàng hoặc phiên chơi.
+- Chuẩn bị dữ liệu chi tiết đơn hàng cho Payment.
+- Giữ nguyên schema database và tiếp tục trả DTO thay vì Entity.
