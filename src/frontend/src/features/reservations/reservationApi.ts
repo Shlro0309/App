@@ -7,6 +7,7 @@ import type {
   ReservationFormValues,
   ReservationMachine,
   ReservationStatus,
+  StationReservation,
 } from "./types";
 
 function optionalNumber(value: string) {
@@ -61,6 +62,17 @@ export async function getAvailableReservationMachines(
         size: filters.size,
         sort: "id,asc",
       },
+    }
+  );
+
+  return response.data;
+}
+
+export async function getStationActiveReservation(machineId: number) {
+  const response = await httpClient.get<StationReservation | null>(
+    "/reservations/station-active",
+    {
+      params: { machineId },
     }
   );
 

@@ -5,6 +5,7 @@ import com.cybergame.dto.request.ReservationStatusUpdateRequest;
 import com.cybergame.dto.response.MachineResponse;
 import com.cybergame.dto.response.MessageResponse;
 import com.cybergame.dto.response.ReservationResponse;
+import com.cybergame.dto.response.StationReservationResponse;
 import com.cybergame.entity.enums.ReservationStatus;
 import com.cybergame.security.CurrentUser;
 import com.cybergame.service.ReservationService;
@@ -90,6 +91,12 @@ public class ReservationController {
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         return reservationService.getAvailableMachines(keyword, areaId, pageable);
+    }
+
+    @GetMapping("/station-active")
+    @PreAuthorize("permitAll()")
+    public StationReservationResponse getStationReservation(@RequestParam Integer machineId) {
+        return reservationService.getStationReservation(machineId);
     }
 
     @GetMapping("/statuses")

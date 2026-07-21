@@ -320,6 +320,9 @@ Frontend Machine Management hiện có:
 - Mở rộng `ReservationRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
 - Tạo `ReservationSpecifications` để lọc theo từ khóa, khách hàng và trạng thái đặt máy.
 - Khi tạo đặt máy, hệ thống chỉ nhận máy đang `AVAILABLE`, kiểm tra trùng đặt máy active và chuyển máy sang `RESERVED`.
+- Khách chỉ đặt máy thành công khi số dư hiện tại đủ ít nhất 1 giờ chơi của toàn bộ máy đã chọn; hệ thống chỉ kiểm tra điều kiện số dư, không trừ tiền ở bước đặt máy.
+- Đơn đặt máy tạo thành công chuyển thẳng sang `CONFIRMED` và có mã đặt trước dạng `RSV-000123` được suy ra từ mã đơn hiện có, không bổ sung cột database.
+- Bổ sung API `GET /api/reservations/station-active?machineId=...` để màn hình máy trạm đọc reservation `CONFIRMED` còn hạn của máy đó trước khi khách đăng nhập.
 - Khi hủy hoặc đóng đặt máy bằng trạng thái kết thúc, hệ thống giải phóng máy về `AVAILABLE` nếu máy còn đang `RESERVED`.
 - Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/tạo/hủy theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được cập nhật trạng thái đặt máy.
 - Khách hàng chỉ được xem, tạo và hủy đặt máy của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
@@ -335,6 +338,7 @@ POST  /api/reservations
 PATCH /api/reservations/{id}/status
 PATCH /api/reservations/{id}/cancel
 GET   /api/reservations/available-machines
+GET   /api/reservations/station-active
 GET   /api/reservations/statuses
 ```
 
@@ -355,6 +359,8 @@ Frontend Reservation hiện có:
 - Tạo bộ lọc theo từ khóa, khách hàng và trạng thái.
 - Tạo bảng danh sách đặt máy có phân trang.
 - Tạo form đặt máy, chọn một hoặc nhiều máy còn trống từ API `/api/reservations/available-machines`.
+- Trang đặt máy của khách hiển thị số dư, tổng tiền cần có cho 1 giờ của máy đã chọn và chặn gửi form khi số dư không đủ.
+- Lịch đặt của khách hiển thị mã đặt trước `RSV-000123` và bộ đếm ngược cho đơn `CONFIRMED`.
 - Cho phép cập nhật trạng thái đặt máy trực tiếp từ bảng.
 - Cho phép hủy đặt máy khi đặt máy chưa ở trạng thái kết thúc.
 - Kết nối frontend với các API `/api/reservations`, `/api/reservations/statuses` và `/api/reservations/available-machines`.
@@ -372,6 +378,7 @@ Frontend Reservation hiện có:
 - Tạo `PlaySessionSpecifications` để lọc theo từ khóa, khách hàng, máy và trạng thái phiên chơi.
 - Cho phép bắt đầu phiên trực tiếp trên máy đang `AVAILABLE`; khi bắt đầu phiên, máy chuyển sang `PLAYING`.
 - Cho phép check-in từ reservation đã `CONFIRMED`; hệ thống kiểm tra reservation chưa hết hạn, máy thuộc reservation và máy đang `RESERVED`.
+- Khi khách nhập đúng mã đặt trước tại máy trạm và đăng nhập đúng tài khoản sở hữu đơn, backend tạo phiên chơi từ reservation, chuyển máy từ `RESERVED` sang `PLAYING`; nếu toàn bộ máy trong đơn đã được check-in thì reservation chuyển sang `COMPLETED`.
 - Chặn bắt đầu phiên trực tiếp hoặc check-in từ reservation nếu số dư khách hàng không lớn hơn `0`; khách phải nạp tiền trước khi vào phiên chơi.
 - Khi kết thúc phiên, hệ thống tính `tongTienGio` theo số phút sử dụng và `giaTheoGio`, chuyển phiên sang `COMPLETED`, đồng thời giải phóng máy về `AVAILABLE`.
 - Khi tiền giờ đã dùng chạm số dư khách hàng, backend tự kết thúc phiên theo lịch kiểm tra định kỳ, trừ số dư về tối thiểu `0`, chuyển khách về `OFFLINE` và giải phóng máy về `AVAILABLE`.
@@ -641,6 +648,8 @@ Frontend Reports hiện có:
 - Tách rõ portal vận hành nội bộ khỏi trải nghiệm khách hàng: layout sidebar vận hành chỉ dành cho `ADMIN` và `EMPLOYEE`.
 - Tạo route `/customer/login` cho màn hình đăng nhập máy trạm riêng của khách tại quán, tách khỏi màn hình `/login` của vận hành.
 - Màn hình `/customer/login` chỉ cho tài khoản `CUSTOMER` vào phiên chơi; nếu số dư bằng `0` thì giữ khách ở màn hình này, thông báo cần nạp thêm tiền và cho nạp tiền trực tiếp trước khi vào side window.
+- Màn hình `/customer/login` nhận `machineId` qua URL, ví dụ `/customer/login?machineId=2`, sau đó ghi nhớ máy trạm trong `localStorage`; nếu máy đó có reservation `CONFIRMED` còn hạn thì hiển thị countdown và yêu cầu nhập mã đặt trước trước khi đăng nhập vào phiên chơi.
+- Nếu máy trạm không có reservation còn hạn thì `/customer/login` vẫn hiển thị giao diện đăng nhập phiên chơi bình thường.
 - Tạo route `/customer` cho side window khách hàng tại máy trong quán, có thể thu gọn/mở lại, hiển thị tài khoản, máy đang dùng, số dư, thời gian còn lại, thời gian đã dùng, đơn gọi món, lịch sử thanh toán và các thao tác nhanh.
 - Side window tự giảm số dư hiển thị theo thời gian chơi, cảnh báo khi còn khoảng `30`, `10`, `5` phút và tự gọi kết thúc phiên rồi quay về màn hình `/customer/login` khi số dư về `0`.
 - Tạo route `/booking/login` cho màn hình đăng nhập riêng của khách đặt máy từ laptop/điện thoại cá nhân; route này chỉ cho tài khoản `CUSTOMER` đi vào web booking.
@@ -664,7 +673,7 @@ Frontend Reports hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store. Nghiệp vụ đặt máy hiện đã có điều kiện số dư đủ 1 giờ, mã đặt trước, countdown ở trang booking và countdown/check-in bằng mã tại màn hình login máy trạm.
 
 ## Giai đoạn tiếp theo
 

@@ -5,6 +5,7 @@ import com.cybergame.dto.request.ReservationStatusUpdateRequest;
 import com.cybergame.dto.response.MachineResponse;
 import com.cybergame.dto.response.MessageResponse;
 import com.cybergame.dto.response.ReservationResponse;
+import com.cybergame.dto.response.StationReservationResponse;
 import com.cybergame.entity.enums.ReservationStatus;
 import com.cybergame.security.CurrentUser;
 import org.springframework.data.domain.Page;
@@ -31,6 +32,8 @@ public interface ReservationService {
     MessageResponse cancelReservation(CurrentUser currentUser, Integer id);
 
     Page<MachineResponse> getAvailableMachines(String keyword, Integer areaId, Pageable pageable);
+
+    StationReservationResponse getStationReservation(Integer machineId);
 
     List<String> getStatuses();
 }

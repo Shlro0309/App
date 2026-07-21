@@ -5,6 +5,7 @@ import com.cybergame.dto.request.ReservationStatusUpdateRequest;
 import com.cybergame.dto.response.MachineResponse;
 import com.cybergame.dto.response.MessageResponse;
 import com.cybergame.dto.response.ReservationResponse;
+import com.cybergame.dto.response.StationReservationResponse;
 import com.cybergame.entity.Customer;
 import com.cybergame.entity.Machine;
 import com.cybergame.entity.Reservation;
@@ -87,13 +88,14 @@ public class ReservationServiceImpl implements ReservationService {
     public ReservationResponse createReservation(CurrentUser currentUser, ReservationCreateRequest request) {
         Customer customer = resolveCustomer(currentUser, request.customerId());
         Set<Machine> machines = getReservableMachines(request.machineIds());
+        validateBalanceForOneHourReservation(customer, machines);
 
         Reservation reservation = new Reservation();
         reservation.setCustomer(customer);
         reservation.setReservedAt(LocalDateTime.now());
         reservation.setExpiresAt(request.expiresAt());
         reservation.setDeposit(request.deposit() == null ? BigDecimal.ZERO : request.deposit());
-        reservation.setStatus(ReservationStatus.PENDING);
+        reservation.setStatus(ReservationStatus.CONFIRMED);
         reservation.setMachines(machines);
 
         machines.forEach(machine -> machine.setStatus(MachineStatus.RESERVED));
@@ -146,6 +148,35 @@ public class ReservationServiceImpl implements ReservationService {
 
         return machineRepository.findAll(specification, pageable)
                 .map(machineMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StationReservationResponse getStationReservation(Integer machineId) {
+        Reservation reservation = reservationRepository
+                .findActiveStationReservations(machineId, ReservationStatus.CONFIRMED, LocalDateTime.now())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        if (reservation == null) {
+            return null;
+        }
+
+        Machine machine = reservation.getMachines()
+                .stream()
+                .filter(item -> item.getId().equals(machineId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Machine not found in reservation"));
+
+        return new StationReservationResponse(
+                reservation.getId(),
+                toReservationCode(reservation.getId()),
+                machine.getId(),
+                machine.getName(),
+                reservation.getExpiresAt(),
+                reservation.getStatus().name()
+        );
     }
 
     @Override
@@ -202,6 +233,20 @@ public class ReservationServiceImpl implements ReservationService {
         return new LinkedHashSet<>(foundMachines);
     }
 
+    private void validateBalanceForOneHourReservation(Customer customer, Set<Machine> machines) {
+        BigDecimal requiredBalance = machines.stream()
+                .map(machine -> machine.getHourlyPrice() == null ? BigDecimal.ZERO : machine.getHourlyPrice())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal currentBalance = customer.getBalance() == null ? BigDecimal.ZERO : customer.getBalance();
+        if (currentBalance.compareTo(requiredBalance) < 0) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "Customer balance must cover at least one hour for selected machines"
+            );
+        }
+    }
+
     private void validateCanAccess(CurrentUser currentUser, Reservation reservation) {
         if (canManageReservations(currentUser)) {
             return;
@@ -237,5 +282,9 @@ public class ReservationServiceImpl implements ReservationService {
         return status == ReservationStatus.CANCELLED
                 || status == ReservationStatus.EXPIRED
                 || status == ReservationStatus.COMPLETED;
+    }
+
+    private String toReservationCode(Integer id) {
+        return id == null ? null : "RSV-%06d".formatted(id);
     }
 }

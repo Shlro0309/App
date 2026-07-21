@@ -14,6 +14,7 @@ import java.util.List;
 public interface ReservationMapper {
 
     @Mapping(target = "customerId", source = "customer.id")
+    @Mapping(target = "reservationCode", expression = "java(toReservationCode(reservation.getId()))")
     @Mapping(target = "userId", source = "customer.user.id")
     @Mapping(target = "customerName", source = "customer.user.fullName")
     @Mapping(target = "phoneNumber", source = "customer.user.phoneNumber")
@@ -32,5 +33,9 @@ public interface ReservationMapper {
                 .sorted(Comparator.comparing(Machine::getId))
                 .map(this::toMachineResponse)
                 .toList();
+    }
+
+    default String toReservationCode(Integer id) {
+        return id == null ? null : "RSV-%06d".formatted(id);
     }
 }

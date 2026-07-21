@@ -33,6 +33,22 @@ public interface ReservationRepository extends JpaRepository<Reservation, Intege
     @Query("select reservation from Reservation reservation where reservation.id = :id")
     Optional<Reservation> findDetailedById(@Param("id") Integer id);
 
+    @EntityGraph(attributePaths = {"machines", "machines.area"})
+    @Query("""
+            select reservation
+            from Reservation reservation
+            join reservation.machines machine
+            where machine.id = :machineId
+              and reservation.status = :status
+              and reservation.expiresAt > :now
+            order by reservation.expiresAt asc
+            """)
+    List<Reservation> findActiveStationReservations(
+            @Param("machineId") Integer machineId,
+            @Param("status") ReservationStatus status,
+            @Param("now") LocalDateTime now
+    );
+
     @Query("""
             select count(reservation) > 0
             from Reservation reservation

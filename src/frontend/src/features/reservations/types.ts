@@ -16,6 +16,7 @@ export type ReservationMachine = {
 
 export type Reservation = {
   id: number;
+  reservationCode: string;
   customerId: number;
   userId: number;
   customerName: string;
@@ -25,6 +26,15 @@ export type Reservation = {
   deposit: number;
   status: ReservationStatus;
   machines: ReservationMachine[];
+};
+
+export type StationReservation = {
+  reservationId: number;
+  reservationCode: string;
+  machineId: number;
+  machineName: string;
+  expiresAt: string;
+  status: ReservationStatus;
 };
 
 export type ReservationFilters = {

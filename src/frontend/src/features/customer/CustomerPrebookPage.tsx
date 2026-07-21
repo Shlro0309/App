@@ -68,6 +68,29 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function remainingSeconds(expiresAt: string, now: Date) {
+  return Math.max(0, (new Date(expiresAt).getTime() - now.getTime()) / 1000);
+}
+
+function formatCountdown(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  return [hours, minutes, seconds]
+    .map((item) => String(item).padStart(2, "0"))
+    .join(":");
+}
+
+const statusLabels: Record<string, string> = {
+  PENDING: "Chờ xác nhận",
+  CONFIRMED: "Đã xác nhận",
+  CANCELLED: "Đã hủy",
+  EXPIRED: "Đã hết hạn",
+  COMPLETED: "Hoàn tất",
+};
+
 function ReservationStatusBadge({ status }: { status: string }) {
   const className =
     status === "CONFIRMED"
@@ -78,7 +101,7 @@ function ReservationStatusBadge({ status }: { status: string }) {
 
   return (
     <span className={`inline-flex h-7 items-center rounded-md border px-2 text-xs font-medium ${className}`}>
-      {status}
+      {statusLabels[status] ?? status}
     </span>
   );
 }
@@ -93,6 +116,7 @@ export function CustomerPrebookPage() {
   const [selectedMachineIds, setSelectedMachineIds] = useState<number[]>([]);
   const [expiresAt, setExpiresAt] = useState(defaultExpiresAt);
   const [deposit, setDeposit] = useState("0");
+  const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +150,11 @@ export function CustomerPrebookPage() {
     void loadData("");
   }, [loadData]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const selectedMachines = useMemo(
     () => machines.filter((machine) => selectedMachineIds.includes(machine.id)),
     [machines, selectedMachineIds]
@@ -135,6 +164,9 @@ export function CustomerPrebookPage() {
     (total, machine) => total + machine.hourlyPrice,
     0
   );
+  const customerBalance = user?.balance ?? 0;
+  const hasEnoughBalance =
+    selectedMachineIds.length === 0 || customerBalance >= estimatedHourlyTotal;
 
   function toggleMachine(machine: ReservationMachine) {
     setSelectedMachineIds((current) =>
@@ -160,7 +192,7 @@ export function CustomerPrebookPage() {
         deposit,
         machineIds: selectedMachineIds,
       });
-      setSuccess("Đã gửi yêu cầu đặt máy trước.");
+      setSuccess("Đã đặt máy trước thành công. Dùng mã đặt trước trong lịch đặt để check-in tại máy.");
       setSelectedMachineIds([]);
       await loadData(keyword);
     } catch (saveError) {
@@ -189,6 +221,9 @@ export function CustomerPrebookPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <span className="rounded-md border px-3 py-2 text-sm text-emerald-200">
+              Số dư {formatCurrency(user?.balance ?? 0)}
+            </span>
             <span className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
               {user?.fullName ?? user?.username}
             </span>
@@ -239,7 +274,7 @@ export function CustomerPrebookPage() {
           <div className="flex items-end">
             <button
               className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
-              disabled={saving || selectedMachineIds.length === 0}
+              disabled={saving || selectedMachineIds.length === 0 || !hasEnoughBalance}
               type="submit"
             >
               <CheckCircle2 className="size-4" />
@@ -247,6 +282,13 @@ export function CustomerPrebookPage() {
             </button>
           </div>
         </form>
+        {!hasEnoughBalance ? (
+          <div className="rounded-md border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-sm text-amber-100">
+            Số dư phải đủ ít nhất 1 giờ chơi của máy đã chọn. Cần{" "}
+            {formatCurrency(estimatedHourlyTotal)}, hiện có{" "}
+            {formatCurrency(customerBalance)}.
+          </div>
+        ) : null}
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="grid gap-4">
@@ -372,7 +414,9 @@ export function CustomerPrebookPage() {
                 {reservations.map((reservation) => (
                   <div className="grid gap-2 p-4" key={reservation.id}>
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium">#{reservation.id}</span>
+                      <span className="font-mono text-sm font-semibold">
+                        {reservation.reservationCode}
+                      </span>
                       <ReservationStatusBadge status={reservation.status} />
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -381,6 +425,12 @@ export function CustomerPrebookPage() {
                     <p className="text-xs text-muted-foreground">
                       Giữ đến {formatDateTime(reservation.expiresAt)}
                     </p>
+                    {reservation.status === "CONFIRMED" ? (
+                      <div className="inline-flex w-fit items-center gap-2 rounded-md border border-primary/35 bg-primary/10 px-2 py-1 text-xs text-emerald-200">
+                        <Clock3 className="size-3.5" />
+                        Còn {formatCountdown(remainingSeconds(reservation.expiresAt, now))}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
