@@ -1,6 +1,7 @@
 package com.cybergame.repository;
 
 import com.cybergame.entity.ServiceItem;
+import com.cybergame.entity.enums.ServiceStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -14,6 +15,10 @@ import java.util.List;
 public interface ServiceItemRepository extends JpaRepository<ServiceItem, Integer>, JpaSpecificationExecutor<ServiceItem> {
 
     List<ServiceItem> findByServiceType(String serviceType);
+
+    long countByStatus(ServiceStatus status);
+
+    long countByStockQuantityLessThanEqual(Integer stockQuantity);
 
     boolean existsByNameIgnoreCase(String name);
 

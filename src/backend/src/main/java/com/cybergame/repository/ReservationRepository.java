@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Set;
 
@@ -17,6 +18,16 @@ public interface ReservationRepository extends JpaRepository<Reservation, Intege
     List<Reservation> findByCustomerId(Integer customerId);
 
     List<Reservation> findByStatus(ReservationStatus status);
+
+    long countByStatus(ReservationStatus status);
+
+    long countByReservedAtGreaterThanEqualAndReservedAtLessThan(LocalDateTime start, LocalDateTime end);
+
+    long countByStatusAndReservedAtGreaterThanEqualAndReservedAtLessThan(
+            ReservationStatus status,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 
     @EntityGraph(attributePaths = {"customer", "customer.user", "machines", "machines.area"})
     @Query("select reservation from Reservation reservation where reservation.id = :id")

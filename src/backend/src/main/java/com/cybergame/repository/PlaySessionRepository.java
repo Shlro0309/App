@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface PlaySessionRepository extends JpaRepository<PlaySession, Integer>, JpaSpecificationExecutor<PlaySession> {
@@ -18,6 +19,19 @@ public interface PlaySessionRepository extends JpaRepository<PlaySession, Intege
     Optional<PlaySession> findFirstByMachineIdAndStatus(Integer machineId, PlaySessionStatus status);
 
     boolean existsByMachineIdAndStatus(Integer machineId, PlaySessionStatus status);
+
+    long countByStatus(PlaySessionStatus status);
+
+    long countByStartedAtGreaterThanEqualAndStartedAtLessThan(LocalDateTime start, LocalDateTime end);
+
+    long countByStatusAndStartedAtGreaterThanEqualAndStartedAtLessThan(
+            PlaySessionStatus status,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
+    @EntityGraph(attributePaths = {"customer", "customer.user", "machine", "machine.area"})
+    List<PlaySession> findTop6ByStatusOrderByStartedAtDesc(PlaySessionStatus status);
 
     @EntityGraph(attributePaths = {"customer", "customer.user", "machine", "machine.area"})
     @Query("select playSession from PlaySession playSession where playSession.id = :id")

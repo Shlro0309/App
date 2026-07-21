@@ -15,6 +15,8 @@ public interface MachineRepository extends JpaRepository<Machine, Integer>, JpaS
 
     List<Machine> findByStatus(MachineStatus status);
 
+    long countByStatus(MachineStatus status);
+
     List<Machine> findByAreaId(Integer areaId);
 
     boolean existsByNameIgnoreCase(String name);

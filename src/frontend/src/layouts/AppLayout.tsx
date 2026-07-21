@@ -8,10 +8,12 @@ import {
   ScrollText,
   Timer,
   Utensils,
+  Users,
 } from "lucide-react";
 
 const navigationItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
+  { label: "Tài khoản", path: "/users", icon: Users },
   { label: "Máy trạm", path: "/machines", icon: Monitor },
   { label: "Đặt máy", path: "/reservations", icon: CalendarClock },
   { label: "Phiên chơi", path: "/play-sessions", icon: Timer },

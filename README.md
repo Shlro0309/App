@@ -133,14 +133,14 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 3 | Kết nối SQL Server | Đã hoàn thành |
 | 4 | Spring Security + JWT | Đã hoàn thành |
 | 5 | Authentication | Đã hoàn thành |
-| 6 | User Management | Đã hoàn thành |
+| 6 | User Management | Đã hoàn thành backend, đã bổ sung frontend quản lý tài khoản ở workspace hiện tại |
 | 7 | Machine Management | Đã hoàn thành backend, đã bổ sung frontend quản lý máy ở workspace hiện tại |
 | 8 | Reservation | Đã hoàn thành backend, đã bổ sung frontend quản lý đặt máy ở workspace hiện tại |
 | 9 | Play Session | Đã hoàn thành backend, đã bổ sung frontend quản lý phiên chơi ở workspace hiện tại |
 | 10 | Food Service | Đã hoàn thành backend, đã bổ sung frontend quản lý dịch vụ và đơn gọi món ở workspace hiện tại |
 | 11 | Payment | Đã hoàn thành backend, đã bổ sung frontend quản lý thanh toán ở workspace hiện tại |
-| 12 | Dashboard | Giai đoạn tiếp theo |
-| 13 | Reports | Chưa thực hiện |
+| 12 | Dashboard | Đã hoàn thành backend tổng quan, đã bổ sung frontend Dashboard dữ liệu thật ở workspace hiện tại |
+| 13 | Reports | Giai đoạn tiếp theo |
 | 14 | Frontend | Đang phát triển theo từng module |
 | 15 | WebSocket | Chưa thực hiện |
 | 16 | Testing | Đã có kiểm tra build/lint cơ bản, chưa có test tích hợp/e2e đầy đủ |
@@ -245,7 +245,18 @@ status: ACTIVE, LOCKED
 page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
 ```
 
-Lưu ý: file SQL gốc hiện chỉ chứa schema, không có dữ liệu tài khoản admin mẫu. Để dùng các API quản trị, database cần có sẵn ít nhất một tài khoản role `ADMIN` hoặc cần bootstrap dữ liệu admin ban đầu bằng quy trình triển khai riêng.
+Frontend User Management hiện có:
+
+- Tạo route `/users` trong React Router.
+- Bật điều hướng thật cho mục Tài khoản trên sidebar/header.
+- Tạo trang quản lý tài khoản với thống kê nhanh tổng tài khoản, khách hàng, nhân viên và tài khoản đã khóa.
+- Tạo bộ lọc theo từ khóa, role và trạng thái tài khoản.
+- Tạo bảng danh sách tài khoản có phân trang.
+- Tạo form thêm tài khoản mới cho `ADMIN`, `EMPLOYEE` hoặc `CUSTOMER`.
+- Cho phép sửa thông tin liên hệ, đổi role, khóa tài khoản và mở khóa tài khoản trực tiếp từ bảng.
+- Kết nối frontend với các API `/api/users` và `/api/users/roles`.
+
+Lưu ý: file SQL gốc hiện chỉ chứa schema. Workspace hiện có thêm script `config/scripts/seed-dashboard-sample-data.sql` để tạo dữ liệu demo cho Dashboard và tài khoản mẫu khi cần chạy thử local.
 
 ### Giai đoạn 5: Machine Management
 
@@ -532,6 +543,38 @@ Frontend Payment hiện có:
 - Cho phép xác nhận thanh toán, hủy hóa đơn đang chờ và cập nhật trạng thái hóa đơn trực tiếp từ bảng.
 - Kết nối frontend với các API `/api/payments`, `/api/payments/statuses` và `/api/payments/methods`.
 
+### Giai đoạn 10: Dashboard
+
+Đã hoàn thành:
+
+- Tạo module Dashboard theo mô hình `Controller -> Service -> Repository`.
+- Tạo `DashboardController` cho nhóm API `/api/dashboard`.
+- Tạo `DashboardService` và `DashboardServiceImpl` để gom dữ liệu tổng quan từ các module đã hoàn thành.
+- Tạo DTO riêng cho Dashboard gồm số liệu tổng quan, phân bố trạng thái, doanh thu theo ngày, phiên chơi đang hoạt động và thanh toán gần đây.
+- Mở rộng các repository hiện có bằng query đọc dữ liệu tổng hợp: `MachineRepository`, `ReservationRepository`, `PlaySessionRepository`, `CustomerOrderRepository`, `InvoiceRepository` và `ServiceItemRepository`.
+- Dashboard chỉ đọc dữ liệu, không ghi dữ liệu và không thay đổi schema database.
+- API Dashboard yêu cầu role `ADMIN` hoặc `EMPLOYEE` vì đây là màn hình tổng quan vận hành/quản trị.
+- Tổng hợp doanh thu hôm nay và 7 ngày gần nhất từ hóa đơn `PAID`.
+- Tổng hợp số phiên chơi active, phiên hoàn tất trong ngày, đặt máy trong ngày, đơn gọi món chờ, hóa đơn chờ, máy theo trạng thái, dịch vụ active và dịch vụ sắp hết hàng.
+- Bổ sung danh sách phiên chơi đang hoạt động và danh sách thanh toán gần đây để nhân viên có thể quét nhanh tình hình vận hành.
+- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+
+Các API Dashboard hiện có:
+
+```text
+GET /api/dashboard/overview
+```
+
+Frontend Dashboard hiện có:
+
+- Route `/` đã dùng màn hình Dashboard kết nối dữ liệu thật thay cho số liệu tĩnh.
+- Tạo API client `/api/dashboard/overview` và kiểu dữ liệu riêng trong `features/dashboard`.
+- Hiển thị các thẻ số liệu nhanh cho doanh thu, phiên chơi, máy, đặt máy, thanh toán, đơn gọi món và dịch vụ.
+- Hiển thị biểu đồ doanh thu 7 ngày bằng Recharts.
+- Hiển thị phân bố trạng thái máy và hóa đơn.
+- Hiển thị danh sách phiên chơi đang hoạt động và thanh toán gần đây.
+- Bổ sung trạng thái loading, refresh và thông báo lỗi quyền truy cập khi tài khoản không đủ quyền xem Dashboard.
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -546,14 +589,14 @@ Frontend Payment hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines`, `/reservations`, `/play-sessions`, `/food-services` và `/payments` đã được bổ sung vào React Router; `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/`, `/machines`, `/reservations`, `/play-sessions`, `/food-services` và `/payments` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Dashboard:
+Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Reports:
 
-- Thiết kế API tổng quan để gom dữ liệu từ máy, đặt máy, phiên chơi, dịch vụ và hóa đơn.
-- Thống kê nhanh trạng thái máy, phiên chơi đang hoạt động, đặt máy trong ngày và doanh thu đã thanh toán.
-- Chuẩn bị dữ liệu biểu đồ doanh thu, đơn gọi món và mức sử dụng máy cho giao diện quản trị.
-- Bổ sung màn hình Dashboard kết nối dữ liệu thật thay cho giao diện nền ban đầu.
+- Thiết kế API báo cáo dựa trên dữ liệu hiện có của phiên chơi, dịch vụ, hóa đơn và máy trạm.
+- Bổ sung báo cáo doanh thu theo khoảng thời gian, nguồn giao dịch và phương thức thanh toán.
+- Bổ sung báo cáo sử dụng máy, phiên chơi và dịch vụ bán ra.
+- Chuẩn bị frontend Reports với bộ lọc thời gian và bảng/biểu đồ xuất dữ liệu.
 - Giữ nguyên schema database và tiếp tục trả DTO thay vì Entity.

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, Integer>, JpaSpecificationExecutor<CustomerOrder> {
@@ -16,6 +17,16 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, In
     List<CustomerOrder> findByCustomerId(Integer customerId);
 
     List<CustomerOrder> findByStatus(OrderStatus status);
+
+    long countByStatus(OrderStatus status);
+
+    long countByOrderedAtGreaterThanEqualAndOrderedAtLessThan(LocalDateTime start, LocalDateTime end);
+
+    long countByStatusAndOrderedAtGreaterThanEqualAndOrderedAtLessThan(
+            OrderStatus status,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 
     @EntityGraph(attributePaths = {
             "customer",
