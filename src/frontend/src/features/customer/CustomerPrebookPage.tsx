@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { ApiError } from "@/types/api";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import type {
   Reservation,
   ReservationMachine,
@@ -154,6 +155,10 @@ export function CustomerPrebookPage() {
     const interval = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useRealtimeEvents(["RESERVATION_CHANGED", "MACHINE_STATUS_CHANGED"], () => {
+    void loadData(keyword);
+  });
 
   const selectedMachines = useMemo(
     () => machines.filter((machine) => selectedMachineIds.includes(machine.id)),

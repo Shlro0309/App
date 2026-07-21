@@ -25,6 +25,7 @@ import {
   YAxis,
 } from "recharts";
 import type { ApiError } from "@/types/api";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import { getReportOverview } from "./reportApi";
 import type {
   ReportBreakdown,
@@ -325,6 +326,11 @@ export function ReportPage() {
   useEffect(() => {
     void loadReport(initialFilters);
   }, [initialFilters, loadReport]);
+
+  useRealtimeEvents(
+    ["PLAY_SESSION_CHANGED", "FOOD_ORDER_CHANGED", "PAYMENT_CHANGED"],
+    () => void loadReport(filters)
+  );
 
   const chartData = useMemo(
     () =>

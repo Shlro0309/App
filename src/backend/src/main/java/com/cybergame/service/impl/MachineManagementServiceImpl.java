@@ -16,6 +16,8 @@ import com.cybergame.repository.AreaRepository;
 import com.cybergame.repository.MachineRepository;
 import com.cybergame.repository.MachineSpecifications;
 import com.cybergame.service.MachineManagementService;
+import com.cybergame.websocket.RealtimeEventPublisher;
+import com.cybergame.websocket.RealtimeEventType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +37,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     private final MachineRepository machineRepository;
     private final AreaRepository areaRepository;
     private final MachineMapper machineMapper;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -72,7 +75,14 @@ public class MachineManagementServiceImpl implements MachineManagementService {
         machine.setStatus(request.status() == null ? MachineStatus.AVAILABLE : request.status());
         machine.setAddedAt(LocalDateTime.now());
 
-        return machineMapper.toResponse(machineRepository.save(machine));
+        Machine savedMachine = machineRepository.save(machine);
+        realtimeEventPublisher.publish(
+                RealtimeEventType.MACHINE_STATUS_CHANGED,
+                savedMachine.getId(),
+                "CREATED",
+                "Machine has been created"
+        );
+        return machineMapper.toResponse(savedMachine);
     }
 
     @Override
@@ -91,7 +101,14 @@ public class MachineManagementServiceImpl implements MachineManagementService {
         machine.setResolution(normalizeBlank(request.resolution()));
         machine.setHourlyPrice(request.hourlyPrice());
 
-        return machineMapper.toResponse(machineRepository.save(machine));
+        Machine savedMachine = machineRepository.save(machine);
+        realtimeEventPublisher.publish(
+                RealtimeEventType.MACHINE_STATUS_CHANGED,
+                savedMachine.getId(),
+                "UPDATED",
+                "Machine has been updated"
+        );
+        return machineMapper.toResponse(savedMachine);
     }
 
     @Override
@@ -99,7 +116,14 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     public MachineResponse updateStatus(Integer id, MachineStatusUpdateRequest request) {
         Machine machine = getMachineById(id);
         machine.setStatus(request.status());
-        return machineMapper.toResponse(machineRepository.save(machine));
+        Machine savedMachine = machineRepository.save(machine);
+        realtimeEventPublisher.publish(
+                RealtimeEventType.MACHINE_STATUS_CHANGED,
+                savedMachine.getId(),
+                savedMachine.getStatus().name(),
+                "Machine status has changed"
+        );
+        return machineMapper.toResponse(savedMachine);
     }
 
     @Override
@@ -108,6 +132,12 @@ public class MachineManagementServiceImpl implements MachineManagementService {
         Machine machine = getMachineById(id);
         machine.setStatus(MachineStatus.OFFLINE);
         machineRepository.save(machine);
+        realtimeEventPublisher.publish(
+                RealtimeEventType.MACHINE_STATUS_CHANGED,
+                machine.getId(),
+                MachineStatus.OFFLINE.name(),
+                "Machine has been set to OFFLINE"
+        );
         return new MessageResponse("Machine has been set to OFFLINE");
     }
 

@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   cancelPayment,
   checkoutPayment,
@@ -304,6 +305,10 @@ export function PaymentManagementPage() {
 
     void loadInitialData();
   }, []);
+
+  useRealtimeEvents(["PAYMENT_CHANGED"], () => {
+    void loadPayments(filters);
+  });
 
   function updateFilters(nextFilters: Partial<PaymentFilters>) {
     setFilters((current) => ({

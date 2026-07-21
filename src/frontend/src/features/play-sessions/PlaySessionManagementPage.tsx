@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   cancelPlaySession,
   endPlaySession,
@@ -381,6 +382,10 @@ export function PlaySessionManagementPage() {
 
     void loadInitialData();
   }, []);
+
+  useRealtimeEvents(["PLAY_SESSION_CHANGED", "MACHINE_STATUS_CHANGED"], () => {
+    void loadPlaySessions(filters);
+  });
 
   function updateFilters(nextFilters: Partial<PlaySessionFilters>) {
     setFilters((current) => ({

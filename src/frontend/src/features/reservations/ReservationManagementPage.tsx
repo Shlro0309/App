@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   cancelReservation,
   createReservation,
@@ -426,6 +427,11 @@ export function ReservationManagementPage() {
 
     void loadInitialData();
   }, []);
+
+  useRealtimeEvents(["RESERVATION_CHANGED", "MACHINE_STATUS_CHANGED"], () => {
+    void loadReservations(filters);
+    void loadAvailableMachines(machineFilters);
+  });
 
   function updateFilters(nextFilters: Partial<ReservationFilters>) {
     setFilters((current) => ({

@@ -32,6 +32,8 @@ import com.cybergame.repository.ServiceItemRepository;
 import com.cybergame.repository.ServiceItemSpecifications;
 import com.cybergame.security.CurrentUser;
 import com.cybergame.service.FoodServiceManagementService;
+import com.cybergame.websocket.RealtimeEventPublisher;
+import com.cybergame.websocket.RealtimeEventType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -61,6 +63,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
     private final PlaySessionRepository playSessionRepository;
     private final ServiceItemMapper serviceItemMapper;
     private final CustomerOrderMapper customerOrderMapper;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -107,7 +110,9 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         serviceItem.setStockQuantity(request.stockQuantity() == null ? 0 : request.stockQuantity());
         serviceItem.setStatus(request.status() == null ? ServiceStatus.ACTIVE : request.status());
 
-        return serviceItemMapper.toResponse(serviceItemRepository.save(serviceItem));
+        ServiceItem savedServiceItem = serviceItemRepository.save(serviceItem);
+        publishFoodOrderChanged(savedServiceItem.getId(), "SERVICE_ITEM_CREATED");
+        return serviceItemMapper.toResponse(savedServiceItem);
     }
 
     @Override
@@ -125,7 +130,9 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         serviceItem.setImageUrl(toNullableText(request.imageUrl()));
         serviceItem.setStockQuantity(request.stockQuantity() == null ? 0 : request.stockQuantity());
 
-        return serviceItemMapper.toResponse(serviceItemRepository.save(serviceItem));
+        ServiceItem savedServiceItem = serviceItemRepository.save(serviceItem);
+        publishFoodOrderChanged(savedServiceItem.getId(), "SERVICE_ITEM_UPDATED");
+        return serviceItemMapper.toResponse(savedServiceItem);
     }
 
     @Override
@@ -138,7 +145,9 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         validateCanManageFoodService(currentUser);
         ServiceItem serviceItem = getServiceItemById(id);
         serviceItem.setStatus(request.status());
-        return serviceItemMapper.toResponse(serviceItemRepository.save(serviceItem));
+        ServiceItem savedServiceItem = serviceItemRepository.save(serviceItem);
+        publishFoodOrderChanged(savedServiceItem.getId(), "SERVICE_ITEM_" + savedServiceItem.getStatus().name());
+        return serviceItemMapper.toResponse(savedServiceItem);
     }
 
     @Override
@@ -148,6 +157,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         ServiceItem serviceItem = getServiceItemById(id);
         serviceItem.setStatus(ServiceStatus.INACTIVE);
         serviceItemRepository.save(serviceItem);
+        publishFoodOrderChanged(serviceItem.getId(), "SERVICE_ITEM_INACTIVE");
         return new MessageResponse("Service item has been deactivated");
     }
 
@@ -206,6 +216,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         savedOrder.setTotalAmount(totalAmount);
         orderDetailRepository.saveAll(details);
         customerOrderRepository.save(savedOrder);
+        publishFoodOrderChanged(savedOrder.getId(), "ORDER_CREATED");
 
         return customerOrderMapper.toResponse(getOrderById(savedOrder.getId()));
     }
@@ -233,7 +244,9 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         }
 
         order.setStatus(nextStatus);
-        return customerOrderMapper.toResponse(customerOrderRepository.save(order));
+        CustomerOrder savedOrder = customerOrderRepository.save(order);
+        publishFoodOrderChanged(savedOrder.getId(), savedOrder.getStatus().name());
+        return customerOrderMapper.toResponse(savedOrder);
     }
 
     @Override
@@ -252,6 +265,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         restockOrder(order);
         order.setStatus(OrderStatus.CANCELLED);
         customerOrderRepository.save(order);
+        publishFoodOrderChanged(order.getId(), OrderStatus.CANCELLED.name());
         return new MessageResponse("Order has been cancelled");
     }
 
@@ -403,5 +417,14 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
             return null;
         }
         return value.trim();
+    }
+
+    private void publishFoodOrderChanged(Integer entityId, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.FOOD_ORDER_CHANGED,
+                entityId,
+                action,
+                "Food service data has changed"
+        );
     }
 }

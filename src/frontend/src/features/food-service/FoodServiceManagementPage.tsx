@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   cancelFoodOrder,
   createFoodOrder,
@@ -525,6 +526,11 @@ export function FoodServiceManagementPage() {
 
     void loadInitialData();
   }, []);
+
+  useRealtimeEvents(["FOOD_ORDER_CHANGED"], () => {
+    void loadServiceItems(serviceFilters);
+    void loadFoodOrders(orderFilters);
+  });
 
   function updateServiceFilters(nextFilters: Partial<ServiceItemFilters>) {
     setServiceFilters((current) => ({

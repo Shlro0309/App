@@ -25,6 +25,8 @@ import com.cybergame.repository.PaymentSpecifications;
 import com.cybergame.repository.PlaySessionRepository;
 import com.cybergame.security.CurrentUser;
 import com.cybergame.service.PaymentService;
+import com.cybergame.websocket.RealtimeEventPublisher;
+import com.cybergame.websocket.RealtimeEventType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,6 +58,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PlaySessionRepository playSessionRepository;
     private final CustomerOrderRepository customerOrderRepository;
     private final PaymentMapper paymentMapper;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -130,7 +133,9 @@ public class PaymentServiceImpl implements PaymentService {
         invoice.setStatus(InvoiceStatus.PENDING);
         invoice.setTransactionAt(LocalDateTime.now());
 
-        return paymentMapper.toResponse(invoiceRepository.save(invoice));
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        publishPaymentChanged(savedInvoice, "CHECKOUT_CREATED");
+        return paymentMapper.toResponse(savedInvoice);
     }
 
     @Override
@@ -154,7 +159,9 @@ public class PaymentServiceImpl implements PaymentService {
         invoice.setStatus(InvoiceStatus.PAID);
         invoice.setTransactionAt(LocalDateTime.now());
 
-        return paymentMapper.toResponse(invoiceRepository.save(invoice));
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        publishPaymentChanged(savedInvoice, WALLET_TOP_UP_TRANSACTION);
+        return paymentMapper.toResponse(savedInvoice);
     }
 
     @Override
@@ -171,7 +178,9 @@ public class PaymentServiceImpl implements PaymentService {
         invoice.setStatus(InvoiceStatus.PAID);
         invoice.setTransactionAt(LocalDateTime.now());
 
-        return paymentMapper.toResponse(invoiceRepository.save(invoice));
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        publishPaymentChanged(savedInvoice, InvoiceStatus.PAID.name());
+        return paymentMapper.toResponse(savedInvoice);
     }
 
     @Override
@@ -203,7 +212,9 @@ public class PaymentServiceImpl implements PaymentService {
             invoice.setTransactionAt(LocalDateTime.now());
         }
 
-        return paymentMapper.toResponse(invoiceRepository.save(invoice));
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        publishPaymentChanged(savedInvoice, savedInvoice.getStatus().name());
+        return paymentMapper.toResponse(savedInvoice);
     }
 
     @Override
@@ -224,6 +235,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoiceRepository.save(invoice);
+        publishPaymentChanged(invoice, InvoiceStatus.CANCELLED.name());
         return new MessageResponse("Invoice has been cancelled");
     }
 
@@ -362,5 +374,14 @@ public class PaymentServiceImpl implements PaymentService {
 
     private BigDecimal normalizeAmount(BigDecimal amount) {
         return amount == null ? BigDecimal.ZERO : amount;
+    }
+
+    private void publishPaymentChanged(Invoice invoice, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.PAYMENT_CHANGED,
+                invoice.getId(),
+                action,
+                "Payment data has changed"
+        );
     }
 }

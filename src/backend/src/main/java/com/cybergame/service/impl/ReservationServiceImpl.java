@@ -22,6 +22,8 @@ import com.cybergame.repository.ReservationRepository;
 import com.cybergame.repository.ReservationSpecifications;
 import com.cybergame.security.CurrentUser;
 import com.cybergame.service.ReservationService;
+import com.cybergame.websocket.RealtimeEventPublisher;
+import com.cybergame.websocket.RealtimeEventType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -52,6 +54,7 @@ public class ReservationServiceImpl implements ReservationService {
     private final MachineRepository machineRepository;
     private final ReservationMapper reservationMapper;
     private final MachineMapper machineMapper;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -101,6 +104,8 @@ public class ReservationServiceImpl implements ReservationService {
         machines.forEach(machine -> machine.setStatus(MachineStatus.RESERVED));
         Reservation savedReservation = reservationRepository.save(reservation);
         machineRepository.saveAll(machines);
+        publishReservationChanged(savedReservation, "CREATED");
+        machines.forEach(machine -> publishMachineChanged(machine, MachineStatus.RESERVED.name()));
 
         return reservationMapper.toResponse(savedReservation);
     }
@@ -119,7 +124,10 @@ public class ReservationServiceImpl implements ReservationService {
         Reservation reservation = getReservationById(id);
         reservation.setStatus(request.status());
         syncMachineStatus(reservation);
-        return reservationMapper.toResponse(reservationRepository.save(reservation));
+        Reservation savedReservation = reservationRepository.save(reservation);
+        publishReservationChanged(savedReservation, request.status().name());
+        savedReservation.getMachines().forEach(machine -> publishMachineChanged(machine, machine.getStatus().name()));
+        return reservationMapper.toResponse(savedReservation);
     }
 
     @Override
@@ -135,6 +143,8 @@ public class ReservationServiceImpl implements ReservationService {
         reservation.setStatus(ReservationStatus.CANCELLED);
         syncMachineStatus(reservation);
         reservationRepository.save(reservation);
+        publishReservationChanged(reservation, ReservationStatus.CANCELLED.name());
+        reservation.getMachines().forEach(machine -> publishMachineChanged(machine, machine.getStatus().name()));
         return new MessageResponse("Reservation has been cancelled");
     }
 
@@ -286,5 +296,23 @@ public class ReservationServiceImpl implements ReservationService {
 
     private String toReservationCode(Integer id) {
         return id == null ? null : "RSV-%06d".formatted(id);
+    }
+
+    private void publishReservationChanged(Reservation reservation, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.RESERVATION_CHANGED,
+                reservation.getId(),
+                action,
+                "Reservation has changed"
+        );
+    }
+
+    private void publishMachineChanged(Machine machine, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.MACHINE_STATUS_CHANGED,
+                machine.getId(),
+                action,
+                "Machine status has changed"
+        );
     }
 }

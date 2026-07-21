@@ -25,6 +25,7 @@ import type { FoodOrder, ServiceItem } from "@/features/food-service/types";
 import type { Payment } from "@/features/payments/types";
 import { endPlaySession } from "@/features/play-sessions/playSessionApi";
 import type { PlaySession } from "@/features/play-sessions/types";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import { useAuthStore } from "@/stores/authStore";
 import {
   getCustomerActiveSession,
@@ -435,6 +436,14 @@ export function CustomerSideWindowPage() {
 
     return () => window.clearInterval(interval);
   }, [loadPanel, refreshCurrentUser]);
+
+  useRealtimeEvents(
+    ["PLAY_SESSION_CHANGED", "FOOD_ORDER_CHANGED", "PAYMENT_CHANGED"],
+    () => {
+      void refreshCurrentUser();
+      void loadPanel();
+    }
+  );
 
   const elapsed = useMemo(() => elapsedSeconds(activeSession, now), [activeSession, now]);
   const visibleBalance = useMemo(

@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   createMachine,
   getMachineAreas,
@@ -359,6 +360,10 @@ export function MachineManagementPage() {
 
     void loadInitialData();
   }, []);
+
+  useRealtimeEvents(["MACHINE_STATUS_CHANGED"], () => {
+    void loadMachines(filters);
+  });
 
   function updateFilters(nextFilters: Partial<MachineFilters>) {
     setFilters((current) => ({

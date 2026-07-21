@@ -142,7 +142,7 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 12 | Dashboard | Đã hoàn thành backend tổng quan, đã bổ sung frontend Dashboard dữ liệu thật ở workspace hiện tại |
 | 13 | Reports | Đã hoàn thành backend báo cáo, đã bổ sung frontend Reports ở workspace hiện tại |
 | 14 | Frontend | Đã tách portal vận hành cho ADMIN/EMPLOYEE, side window tại quán `/customer` và web đặt máy trước riêng cho khách gồm `/booking/login`, `/booking` |
-| 15 | WebSocket | Giai đoạn tiếp theo |
+| 15 | WebSocket | Đã hoàn thành backend WebSocket/STOMP và frontend realtime client cho các màn hình vận hành/khách hàng |
 | 16 | Testing | Đã có kiểm tra build/lint cơ bản, chưa có test tích hợp/e2e đầy đủ |
 
 Các module đã hoàn thành vẫn tuân thủ quy tắc chính của file yêu cầu: không thay đổi schema database, backend theo mô hình `Controller -> Service -> Repository`, API trả DTO thay vì Entity, dùng MapStruct, validation và phân quyền theo role.
@@ -671,15 +671,30 @@ Frontend Reports hiện có:
 - Thêm README ngắn trong `docs`, `config`, `tests`, `public` để giải thích vai trò từng thư mục.
 - Không thay đổi package Java, cấu trúc module Spring Boot, cấu trúc source React hoặc schema database.
 
+### Giai đoạn 13: WebSocket
+
+Đã hoàn thành:
+
+- Cấu hình WebSocket/STOMP trong backend tại endpoint `/api/ws`, dùng simple broker `/topic`, application prefix `/app` và user prefix `/user`.
+- Mở quyền truy cập handshake WebSocket trong Spring Security cho `/ws/**`, còn các API nghiệp vụ vẫn giữ cơ chế JWT/role hiện có.
+- Tạo event realtime dùng chung gồm `RealtimeEvent`, `RealtimeEventType` và `RealtimeEventPublisher`.
+- Chuẩn hóa các loại sự kiện realtime chính: `MACHINE_STATUS_CHANGED`, `RESERVATION_CHANGED`, `PLAY_SESSION_CHANGED`, `FOOD_ORDER_CHANGED` và `PAYMENT_CHANGED`.
+- `RealtimeEventPublisher` phát sự kiện lên topic `/topic/realtime`; nếu nghiệp vụ đang chạy trong transaction thì sự kiện chỉ được gửi sau khi transaction commit thành công.
+- Bổ sung phát sự kiện realtime từ các service hiện có khi máy đổi trạng thái, đơn đặt máy thay đổi, phiên chơi bắt đầu/kết thúc/hủy, đơn dịch vụ thay đổi và thanh toán/nạp tiền cập nhật.
+- Khi đặt máy, check-in đặt trước hoặc kết thúc phiên chơi làm đổi trạng thái máy, backend phát cả sự kiện của nghiệp vụ chính và sự kiện máy để các màn hình liên quan tự cập nhật.
+- Bổ sung realtime client ở frontend trong `features/realtime`, dùng `@stomp/stompjs`, tự suy ra URL WebSocket từ `VITE_API_BASE_URL`, tự reconnect và gửi Bearer token hiện có khi người dùng đã đăng nhập.
+- Tạo hook `useRealtimeEvents` để các màn hình chỉ cần khai báo nhóm event muốn nghe, không phải tự quản lý kết nối STOMP.
+- Dashboard, quản lý máy, đặt máy, phiên chơi, dịch vụ, thanh toán, báo cáo, web đặt máy của khách và side window khách hàng đã subscribe các event liên quan để tự reload dữ liệu khi backend phát thay đổi.
+- Không thay đổi schema database, không thêm bảng/cột mới; WebSocket chỉ dùng để đồng bộ trạng thái từ các nghiệp vụ hiện có.
+
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store. Nghiệp vụ đặt máy hiện đã có điều kiện số dư đủ 1 giờ, mã đặt trước, countdown ở trang booking và countdown/check-in bằng mã tại màn hình login máy trạm.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có và test Spring Boot cơ bản chạy đạt. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store. Nghiệp vụ đặt máy hiện đã có điều kiện số dư đủ 1 giờ, mã đặt trước, countdown ở trang booking và countdown/check-in bằng mã tại màn hình login máy trạm. Giai đoạn WebSocket đã được kiểm tra bằng lint/build frontend và build/test backend.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là WebSocket:
+Theo lộ trình trong file yêu cầu, các module nghiệp vụ chính đã có nền backend/frontend và WebSocket realtime. Giai đoạn kế tiếp nên tập trung vào Testing:
 
-- Thiết kế cấu hình WebSocket/STOMP trong backend theo package `websocket` hiện có.
-- Bổ sung kênh cập nhật trạng thái máy, đặt máy, phiên chơi, đơn gọi món và thanh toán cho Dashboard.
-- Bổ sung client WebSocket ở frontend, dùng token hiện có để kết nối khi người dùng đã đăng nhập.
-- Giữ nguyên schema database và chỉ phát sự kiện từ các nghiệp vụ hiện có.
+- Bổ sung test backend theo từng service quan trọng, đặc biệt các luồng đặt máy, check-in đặt trước, phiên chơi, số dư ví và thanh toán.
+- Bổ sung test frontend cho các màn hình chính và route guard theo role.
+- Bổ sung kiểm thử tích hợp/e2e cho luồng khách hàng: đăng nhập máy trạm, đặt máy từ thiết bị cá nhân, check-in bằng mã đặt trước, gọi món, nạp tiền và tự kết thúc phiên khi hết số dư.

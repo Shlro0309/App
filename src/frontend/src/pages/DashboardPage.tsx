@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AxiosError } from "axios";
 import {
   Activity,
@@ -28,6 +28,7 @@ import type {
   DashboardOverview,
   DashboardStatusCount,
 } from "@/features/dashboard/types";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 
 const machineStatusLabels: Record<string, string> = {
   AVAILABLE: "Trống",
@@ -178,7 +179,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadOverview() {
+  const loadOverview = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -189,11 +190,22 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadOverview();
-  }, []);
+  }, [loadOverview]);
+
+  useRealtimeEvents(
+    [
+      "MACHINE_STATUS_CHANGED",
+      "RESERVATION_CHANGED",
+      "PLAY_SESSION_CHANGED",
+      "FOOD_ORDER_CHANGED",
+      "PAYMENT_CHANGED",
+    ],
+    () => void loadOverview()
+  );
 
   const chartData = useMemo(
     () =>

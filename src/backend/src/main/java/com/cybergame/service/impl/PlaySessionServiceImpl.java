@@ -22,6 +22,8 @@ import com.cybergame.repository.PlaySessionSpecifications;
 import com.cybergame.repository.ReservationRepository;
 import com.cybergame.security.CurrentUser;
 import com.cybergame.service.PlaySessionService;
+import com.cybergame.websocket.RealtimeEventPublisher;
+import com.cybergame.websocket.RealtimeEventType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -50,6 +52,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
     private final PlaySessionMapper playSessionMapper;
+    private final RealtimeEventPublisher realtimeEventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -92,6 +95,8 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         validateCanStartMachine(machine, Set.of(MachineStatus.AVAILABLE));
 
         PlaySession playSession = createActiveSession(customer, machine);
+        publishPlaySessionChanged(playSession, "STARTED");
+        publishMachineChanged(playSession.getMachine(), MachineStatus.PLAYING.name());
         return playSessionMapper.toResponse(playSession);
     }
 
@@ -138,6 +143,12 @@ public class PlaySessionServiceImpl implements PlaySessionService {
             reservationRepository.save(reservation);
         }
 
+        playSessions.forEach(playSession -> {
+            publishPlaySessionChanged(playSession, "STARTED_FROM_RESERVATION");
+            publishMachineChanged(playSession.getMachine(), MachineStatus.PLAYING.name());
+        });
+        publishReservationChanged(reservation, reservation.getStatus().name());
+
         return playSessions.stream()
                 .map(playSessionMapper::toResponse)
                 .toList();
@@ -154,6 +165,8 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         }
 
         completePlaySession(playSession, LocalDateTime.now());
+        publishPlaySessionChanged(playSession, PlaySessionStatus.COMPLETED.name());
+        publishMachineChanged(playSession.getMachine(), MachineStatus.AVAILABLE.name());
 
         return playSessionMapper.toResponse(playSessionRepository.save(playSession));
     }
@@ -171,6 +184,8 @@ public class PlaySessionServiceImpl implements PlaySessionService {
                 .forEach(playSession -> {
                     completePlaySession(playSession, now);
                     playSessionRepository.save(playSession);
+                    publishPlaySessionChanged(playSession, "AUTO_COMPLETED");
+                    publishMachineChanged(playSession.getMachine(), MachineStatus.AVAILABLE.name());
                 });
     }
 
@@ -191,6 +206,8 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         playSession.setStatus(PlaySessionStatus.CANCELLED);
         releaseMachine(playSession.getMachine());
         playSessionRepository.save(playSession);
+        publishPlaySessionChanged(playSession, PlaySessionStatus.CANCELLED.name());
+        publishMachineChanged(playSession.getMachine(), MachineStatus.AVAILABLE.name());
 
         return new MessageResponse("Play session has been cancelled");
     }
@@ -363,5 +380,32 @@ public class PlaySessionServiceImpl implements PlaySessionService {
                 .stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(authority -> "ROLE_ADMIN".equals(authority) || "ROLE_EMPLOYEE".equals(authority));
+    }
+
+    private void publishPlaySessionChanged(PlaySession playSession, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.PLAY_SESSION_CHANGED,
+                playSession.getId(),
+                action,
+                "Play session has changed"
+        );
+    }
+
+    private void publishMachineChanged(Machine machine, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.MACHINE_STATUS_CHANGED,
+                machine.getId(),
+                action,
+                "Machine status has changed"
+        );
+    }
+
+    private void publishReservationChanged(Reservation reservation, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.RESERVATION_CHANGED,
+                reservation.getId(),
+                action,
+                "Reservation has changed"
+        );
     }
 }
