@@ -167,7 +167,8 @@ public class AuthServiceImpl implements AuthService {
                 user.getEmail(),
                 user.getPhoneNumber(),
                 user.getRole().getName().toUpperCase(Locale.ROOT),
-                user.getStatus().name()
+                user.getStatus().name(),
+                customer == null ? null : customer.getBalance()
         );
     }
 

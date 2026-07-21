@@ -1,5 +1,7 @@
 package com.cybergame.dto.response;
 
+import java.math.BigDecimal;
+
 public record UserSummaryResponse(
         Integer userId,
         Integer customerId,
@@ -9,6 +11,7 @@ public record UserSummaryResponse(
         String email,
         String phoneNumber,
         String role,
-        String status
+        String status,
+        BigDecimal balance
 ) {
 }

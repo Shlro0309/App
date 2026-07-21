@@ -141,8 +141,8 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 11 | Payment | Đã hoàn thành backend, đã bổ sung frontend quản lý thanh toán ở workspace hiện tại |
 | 12 | Dashboard | Đã hoàn thành backend tổng quan, đã bổ sung frontend Dashboard dữ liệu thật ở workspace hiện tại |
 | 13 | Reports | Đã hoàn thành backend báo cáo, đã bổ sung frontend Reports ở workspace hiện tại |
-| 14 | Frontend | Giai đoạn tiếp theo: hoàn thiện frontend tổng thể theo các module đã có |
-| 15 | WebSocket | Chưa thực hiện |
+| 14 | Frontend | Đã tách portal vận hành cho ADMIN/EMPLOYEE, side window tại quán `/customer` và web đặt máy trước riêng cho khách gồm `/booking/login`, `/booking` |
+| 15 | WebSocket | Giai đoạn tiếp theo |
 | 16 | Testing | Đã có kiểm tra build/lint cơ bản, chưa có test tích hợp/e2e đầy đủ |
 
 Các module đã hoàn thành vẫn tuân thủ quy tắc chính của file yêu cầu: không thay đổi schema database, backend theo mô hình `Controller -> Service -> Repository`, API trả DTO thay vì Entity, dùng MapStruct, validation và phân quyền theo role.
@@ -617,6 +617,31 @@ Frontend Reports hiện có:
 - Hiển thị bảng top máy sử dụng, top dịch vụ bán ra và top khách hàng.
 - Bổ sung trạng thái loading, refresh và thông báo lỗi quyền truy cập khi tài khoản không đủ quyền xem Reports.
 
+### Giai đoạn 12: Frontend tổng thể
+
+Đã hoàn thành:
+
+- Bổ sung module frontend Authentication trong `features/auth`.
+- Tạo API client cho các API `/api/auth/login`, `/api/auth/me`, `/api/auth/refresh` và `/api/auth/logout`.
+- Tạo kiểu dữ liệu frontend riêng cho user hiện tại, response đăng nhập, token refresh và form đăng nhập.
+- Tạo `tokenStorage` để quản lý `accessToken` và `refreshToken` trong `localStorage` tại một nơi tập trung.
+- Tạo `authStore` bằng Zustand để quản lý trạng thái phiên đăng nhập, user hiện tại, đăng nhập, đăng xuất, khởi tạo phiên và xử lý mất phiên.
+- Bọc ứng dụng bằng `AuthBootstrap` để khi mở frontend, hệ thống tự kiểm tra token đang có, gọi `/api/auth/me`, thử refresh access token nếu cần và đưa người dùng về trạng thái phù hợp.
+- Cập nhật `httpClient` để tự gắn Bearer token vào request, tự refresh access token một lần khi API trả `401` và phát sự kiện mất phiên nếu refresh thất bại.
+- Tạo trang `/login` với form đăng nhập thật, kết nối trực tiếp API backend và lưu token sau khi đăng nhập thành công.
+- Tạo `RequireAuth` để bảo vệ toàn bộ khu vực cần đăng nhập, có thể cấu hình login path riêng cho portal vận hành và web booking khách hàng.
+- Tạo `RequireRole` để chặn route theo quyền mà không phụ thuộc vào việc người dùng tự nhập URL.
+- Tạo `GuestOnly` để người đã đăng nhập không quay lại màn hình login, có thể cấu hình route chuyển tiếp theo từng khu vực.
+- Cập nhật route `/` bằng `HomePage`: `ADMIN` và `EMPLOYEE` vào Dashboard vận hành, `CUSTOMER` được chuyển sang side window `/customer`.
+- Tách rõ portal vận hành nội bộ khỏi trải nghiệm khách hàng: layout sidebar vận hành chỉ dành cho `ADMIN` và `EMPLOYEE`.
+- Tạo route `/customer` cho side window khách hàng tại máy trong quán, có thể thu gọn/mở lại, hiển thị tài khoản, máy đang dùng, số dư, thời gian còn lại, thời gian đã dùng, đơn gọi món, lịch sử thanh toán và các thao tác nhanh.
+- Tạo route `/booking/login` cho màn hình đăng nhập riêng của khách đặt máy từ laptop/điện thoại cá nhân; route này chỉ cho tài khoản `CUSTOMER` đi vào web booking.
+- Tạo route `/booking` cho trang đặt máy trước riêng của khách hàng, dùng tài khoản `CUSTOMER` để xem máy còn trống, chọn nhiều máy, nhập thời gian giữ chỗ và tạo reservation.
+- Giữ `/prebook` làm alias chuyển hướng về `/booking` để tránh hỏng đường dẫn cũ trong quá trình test.
+- Cập nhật sidebar/header vận hành để hiển thị người dùng hiện tại, role hiện tại và nút đăng xuất.
+- Lọc menu theo role: `ADMIN` thấy toàn bộ mục quản trị, `EMPLOYEE` thấy các mục vận hành/báo cáo phù hợp, `CUSTOMER` không đi vào portal vận hành.
+- Bổ sung field `balance` vào DTO `/api/auth/me` và response đăng nhập để customer UI đọc số dư từ bảng `khachHang`, không thay đổi schema database.
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -631,13 +656,13 @@ Frontend Reports hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments` và `/reports` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Frontend tổng thể:
+Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là WebSocket:
 
-- Hoàn thiện luồng frontend còn thiếu quanh đăng nhập, lưu token và lấy thông tin người dùng hiện tại.
-- Rà lại điều hướng, trạng thái loading/error và quyền truy cập giữa các màn hình đã có.
-- Đồng bộ trải nghiệm UI giữa Dashboard, User Management, Machine Management, Reservation, Play Session, Food Service, Payment và Reports.
-- Chuẩn bị nền cho WebSocket ở giai đoạn sau mà không tự ý thay đổi kiến trúc hoặc schema database.
+- Thiết kế cấu hình WebSocket/STOMP trong backend theo package `websocket` hiện có.
+- Bổ sung kênh cập nhật trạng thái máy, đặt máy, phiên chơi, đơn gọi món và thanh toán cho Dashboard.
+- Bổ sung client WebSocket ở frontend, dùng token hiện có để kết nối khi người dùng đã đăng nhập.
+- Giữ nguyên schema database và chỉ phát sự kiện từ các nghiệp vụ hiện có.
