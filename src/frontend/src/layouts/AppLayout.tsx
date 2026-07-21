@@ -19,7 +19,7 @@ const navigationItems = [
   { label: "Phiên chơi", path: "/play-sessions", icon: Timer },
   { label: "Dịch vụ", path: "/food-services", icon: Utensils },
   { label: "Thanh toán", path: "/payments", icon: Receipt },
-  { label: "Báo cáo", icon: BarChart3 },
+  { label: "Báo cáo", path: "/reports", icon: BarChart3 },
 ];
 
 export function AppLayout() {

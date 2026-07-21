@@ -140,8 +140,8 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 10 | Food Service | Đã hoàn thành backend, đã bổ sung frontend quản lý dịch vụ và đơn gọi món ở workspace hiện tại |
 | 11 | Payment | Đã hoàn thành backend, đã bổ sung frontend quản lý thanh toán ở workspace hiện tại |
 | 12 | Dashboard | Đã hoàn thành backend tổng quan, đã bổ sung frontend Dashboard dữ liệu thật ở workspace hiện tại |
-| 13 | Reports | Giai đoạn tiếp theo |
-| 14 | Frontend | Đang phát triển theo từng module |
+| 13 | Reports | Đã hoàn thành backend báo cáo, đã bổ sung frontend Reports ở workspace hiện tại |
+| 14 | Frontend | Giai đoạn tiếp theo: hoàn thiện frontend tổng thể theo các module đã có |
 | 15 | WebSocket | Chưa thực hiện |
 | 16 | Testing | Đã có kiểm tra build/lint cơ bản, chưa có test tích hợp/e2e đầy đủ |
 
@@ -575,6 +575,48 @@ Frontend Dashboard hiện có:
 - Hiển thị danh sách phiên chơi đang hoạt động và thanh toán gần đây.
 - Bổ sung trạng thái loading, refresh và thông báo lỗi quyền truy cập khi tài khoản không đủ quyền xem Dashboard.
 
+### Giai đoạn 11: Reports
+
+Đã hoàn thành:
+
+- Tạo module Reports theo mô hình `Controller -> Service -> Repository`.
+- Tạo `ReportController` cho nhóm API `/api/reports`.
+- Tạo `ReportService` và `ReportServiceImpl` để tổng hợp báo cáo từ dữ liệu thật của hóa đơn, phiên chơi, đơn gọi món, dịch vụ, khách hàng và máy trạm.
+- Tạo DTO riêng cho Reports gồm tổng quan kỳ báo cáo, doanh thu theo ngày, doanh thu theo nguồn giao dịch, doanh thu theo phương thức thanh toán, top máy sử dụng, top dịch vụ bán ra và top khách hàng.
+- Mở rộng các repository hiện có bằng query đọc dữ liệu tổng hợp: `InvoiceRepository`, `PlaySessionRepository` và `OrderDetailRepository`.
+- Reports chỉ đọc dữ liệu, không ghi dữ liệu và không thay đổi schema database.
+- API Reports yêu cầu role `ADMIN` hoặc `EMPLOYEE` vì đây là nhóm báo cáo vận hành/quản trị.
+- Hỗ trợ lọc báo cáo theo `fromDate` và `toDate`, mặc định lấy 30 ngày gần nhất khi frontend mở màn hình.
+- Giới hạn khoảng báo cáo tối đa 366 ngày cho mỗi request để tránh truy vấn quá rộng.
+- Tính tổng doanh thu từ hóa đơn `PAID`, tách doanh thu giờ chơi và doanh thu dịch vụ dựa trên liên kết hóa đơn với phiên chơi/đơn gọi món.
+- Tính thời lượng sử dụng máy từ các phiên chơi đã hoàn tất và xếp hạng máy theo doanh thu.
+- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+
+Các API Reports hiện có:
+
+```text
+GET /api/reports/overview
+```
+
+Các tham số hỗ trợ cho `GET /api/reports/overview`:
+
+```text
+fromDate: ngày bắt đầu kỳ báo cáo theo ISO date, ví dụ 2026-07-01
+toDate: ngày kết thúc kỳ báo cáo theo ISO date, ví dụ 2026-07-21
+```
+
+Frontend Reports hiện có:
+
+- Tạo route `/reports` trong React Router.
+- Bật điều hướng thật cho mục Báo cáo trên sidebar/header.
+- Tạo API client `/api/reports/overview` và kiểu dữ liệu riêng trong `features/reports`.
+- Tạo bộ lọc thời gian theo ngày bắt đầu và ngày kết thúc.
+- Hiển thị các thẻ số liệu nhanh cho tổng doanh thu, doanh thu giờ chơi, doanh thu dịch vụ, số hóa đơn, số phiên hoàn tất, số đơn hoàn tất, thời lượng chơi và trung bình hóa đơn.
+- Hiển thị biểu đồ doanh thu theo ngày bằng Recharts.
+- Hiển thị phân bổ doanh thu theo nguồn giao dịch và phương thức thanh toán.
+- Hiển thị bảng top máy sử dụng, top dịch vụ bán ra và top khách hàng.
+- Bổ sung trạng thái loading, refresh và thông báo lỗi quyền truy cập khi tài khoản không đủ quyền xem Reports.
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -589,14 +631,13 @@ Frontend Dashboard hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/`, `/machines`, `/reservations`, `/play-sessions`, `/food-services` và `/payments` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments` và `/reports` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Reports:
+Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Frontend tổng thể:
 
-- Thiết kế API báo cáo dựa trên dữ liệu hiện có của phiên chơi, dịch vụ, hóa đơn và máy trạm.
-- Bổ sung báo cáo doanh thu theo khoảng thời gian, nguồn giao dịch và phương thức thanh toán.
-- Bổ sung báo cáo sử dụng máy, phiên chơi và dịch vụ bán ra.
-- Chuẩn bị frontend Reports với bộ lọc thời gian và bảng/biểu đồ xuất dữ liệu.
-- Giữ nguyên schema database và tiếp tục trả DTO thay vì Entity.
+- Hoàn thiện luồng frontend còn thiếu quanh đăng nhập, lưu token và lấy thông tin người dùng hiện tại.
+- Rà lại điều hướng, trạng thái loading/error và quyền truy cập giữa các màn hình đã có.
+- Đồng bộ trải nghiệm UI giữa Dashboard, User Management, Machine Management, Reservation, Play Session, Food Service, Payment và Reports.
+- Chuẩn bị nền cho WebSocket ở giai đoạn sau mà không tự ý thay đổi kiến trúc hoặc schema database.

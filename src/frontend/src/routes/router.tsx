@@ -6,6 +6,7 @@ import { MachineManagementPage } from "@/features/machines/MachineManagementPage
 import { PaymentManagementPage } from "@/features/payments/PaymentManagementPage";
 import { PlaySessionManagementPage } from "@/features/play-sessions/PlaySessionManagementPage";
 import { ReservationManagementPage } from "@/features/reservations/ReservationManagementPage";
+import { ReportPage } from "@/features/reports/ReportPage";
 import { UserManagementPage } from "@/features/users/UserManagementPage";
 
 export const router = createBrowserRouter([
@@ -40,6 +41,10 @@ export const router = createBrowserRouter([
       {
         path: "payments",
         element: <PaymentManagementPage />,
+      },
+      {
+        path: "reports",
+        element: <ReportPage />,
       },
     ],
   },

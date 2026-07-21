@@ -33,6 +33,20 @@ public interface PlaySessionRepository extends JpaRepository<PlaySession, Intege
     @EntityGraph(attributePaths = {"customer", "customer.user", "machine", "machine.area"})
     List<PlaySession> findTop6ByStatusOrderByStartedAtDesc(PlaySessionStatus status);
 
+    @EntityGraph(attributePaths = {"machine", "machine.area"})
+    @Query("""
+            select playSession
+            from PlaySession playSession
+            where playSession.status = :status
+              and playSession.startedAt >= :start
+              and playSession.startedAt < :end
+            """)
+    List<PlaySession> findDetailedByStatusAndStartedAtBetween(
+            @Param("status") PlaySessionStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
     @EntityGraph(attributePaths = {"customer", "customer.user", "machine", "machine.area"})
     @Query("select playSession from PlaySession playSession where playSession.id = :id")
     Optional<PlaySession> findDetailedById(@Param("id") Integer id);
