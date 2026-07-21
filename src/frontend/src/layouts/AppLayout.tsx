@@ -16,7 +16,7 @@ const navigationItems = [
   { label: "Đặt máy", path: "/reservations", icon: CalendarClock },
   { label: "Phiên chơi", path: "/play-sessions", icon: Timer },
   { label: "Dịch vụ", path: "/food-services", icon: Utensils },
-  { label: "Thanh toán", icon: Receipt },
+  { label: "Thanh toán", path: "/payments", icon: Receipt },
   { label: "Báo cáo", icon: BarChart3 },
 ];
 

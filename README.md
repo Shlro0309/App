@@ -138,8 +138,8 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 8 | Reservation | Đã hoàn thành backend, đã bổ sung frontend quản lý đặt máy ở workspace hiện tại |
 | 9 | Play Session | Đã hoàn thành backend, đã bổ sung frontend quản lý phiên chơi ở workspace hiện tại |
 | 10 | Food Service | Đã hoàn thành backend, đã bổ sung frontend quản lý dịch vụ và đơn gọi món ở workspace hiện tại |
-| 11 | Payment | Giai đoạn tiếp theo |
-| 12 | Dashboard | Mới có giao diện nền ban đầu |
+| 11 | Payment | Đã hoàn thành backend, đã bổ sung frontend quản lý thanh toán ở workspace hiện tại |
+| 12 | Dashboard | Giai đoạn tiếp theo |
 | 13 | Reports | Chưa thực hiện |
 | 14 | Frontend | Đang phát triển theo từng module |
 | 15 | WebSocket | Chưa thực hiện |
@@ -477,6 +477,61 @@ Frontend Food Service hiện có:
 - Cho phép cập nhật trạng thái và hủy đơn gọi món trực tiếp từ bảng.
 - Kết nối frontend với các API `/api/food-services`, `/api/food-services/statuses`, `/api/food-orders` và `/api/food-orders/statuses`.
 
+### Giai đoạn 9: Payment
+
+Đã hoàn thành:
+
+- Tạo module hóa đơn/thanh toán theo mô hình `Controller -> Service -> Repository`.
+- Tạo `PaymentController` cho nhóm API `/api/payments`.
+- Tạo `PaymentService` và `PaymentServiceImpl` để xử lý nghiệp vụ tạo hóa đơn, thanh toán, cập nhật trạng thái và hủy hóa đơn.
+- Tạo DTO riêng cho tạo hóa đơn checkout, xác nhận thanh toán, cập nhật trạng thái và response thanh toán.
+- Tạo `PaymentMapper` bằng MapStruct để chuyển Entity sang DTO, không trả Entity trực tiếp ra API.
+- Mở rộng `InvoiceRepository` với `JpaSpecificationExecutor` và entity graph để hỗ trợ lọc, phân trang, sắp xếp và lấy đủ thông tin liên quan của hóa đơn.
+- Tạo `PaymentSpecifications` để lọc hóa đơn theo từ khóa, khách hàng, phiên chơi, đơn gọi món và trạng thái.
+- Cho phép tạo hóa đơn từ phiên chơi đã `COMPLETED`, đơn gọi món đã `COMPLETED` hoặc kết hợp cả hai khi cùng thuộc một khách hàng.
+- Tự tính số tiền hóa đơn từ `tongTienGio` của Play Session và `tongTien` của Food Service, không nhập tay tổng tiền từ frontend.
+- Chặn tạo trùng hóa đơn active cho cùng đơn gọi món hoặc phiên chơi độc lập để tránh ghi nhận thanh toán lặp.
+- Cho phép xác nhận thanh toán hóa đơn `PENDING`, cập nhật phương thức thanh toán và thời gian giao dịch.
+- Cho phép cập nhật trạng thái hóa đơn theo luồng hợp lệ: hóa đơn đã thanh toán không được hủy trực tiếp, chỉ có thể chuyển sang hoàn tiền khi cần.
+- Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/tạo/thanh toán/hủy theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được cập nhật trạng thái quản trị.
+- Khách hàng chỉ được thao tác hóa đơn của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
+- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+
+Các API Payment hiện có:
+
+```text
+GET   /api/payments
+GET   /api/payments/{id}
+POST  /api/payments/checkout
+PATCH /api/payments/{id}/pay
+PATCH /api/payments/{id}/status
+PATCH /api/payments/{id}/cancel
+GET   /api/payments/statuses
+GET   /api/payments/methods
+```
+
+Các tham số hỗ trợ cho `GET /api/payments`:
+
+```text
+keyword: tìm theo tên khách hàng, số điện thoại, email, tên máy hoặc mã giao dịch
+customerId: lọc theo khách hàng
+playSessionId: lọc theo phiên chơi
+orderId: lọc theo đơn gọi món
+status: PENDING, PAID, CANCELLED, REFUNDED
+page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
+```
+
+Frontend Payment hiện có:
+
+- Tạo route `/payments` trong React Router.
+- Bật điều hướng thật cho mục Thanh toán trên sidebar/header.
+- Tạo trang quản lý thanh toán với thống kê nhanh tổng hóa đơn, tổng tiền đã thanh toán và tổng tiền đang chờ.
+- Tạo bộ lọc theo từ khóa, khách hàng, phiên chơi, đơn gọi món và trạng thái.
+- Tạo bảng danh sách hóa đơn có phân trang.
+- Tạo form checkout để lập hóa đơn từ phiên chơi, đơn gọi món hoặc kết hợp cả hai.
+- Cho phép xác nhận thanh toán, hủy hóa đơn đang chờ và cập nhật trạng thái hóa đơn trực tiếp từ bảng.
+- Kết nối frontend với các API `/api/payments`, `/api/payments/statuses` và `/api/payments/methods`.
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -491,14 +546,14 @@ Frontend Food Service hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines`, `/reservations`, `/play-sessions` và `/food-services` đã được bổ sung vào React Router; `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines`, `/reservations`, `/play-sessions`, `/food-services` và `/payments` đã được bổ sung vào React Router; `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Payment:
+Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Dashboard:
 
-- Thiết kế API hóa đơn/thanh toán dựa trên schema `hoaDon`.
-- Tổng hợp tiền giờ từ Play Session và tiền dịch vụ từ Food Service.
-- Cho phép tạo hóa đơn cho phiên chơi, đơn gọi món hoặc cả hai theo quan hệ database hiện có.
-- Cập nhật trạng thái thanh toán và chuẩn bị dữ liệu cho Dashboard/Reports.
+- Thiết kế API tổng quan để gom dữ liệu từ máy, đặt máy, phiên chơi, dịch vụ và hóa đơn.
+- Thống kê nhanh trạng thái máy, phiên chơi đang hoạt động, đặt máy trong ngày và doanh thu đã thanh toán.
+- Chuẩn bị dữ liệu biểu đồ doanh thu, đơn gọi món và mức sử dụng máy cho giao diện quản trị.
+- Bổ sung màn hình Dashboard kết nối dữ liệu thật thay cho giao diện nền ban đầu.
 - Giữ nguyên schema database và tiếp tục trả DTO thay vì Entity.
