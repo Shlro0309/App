@@ -38,6 +38,11 @@ export type PaymentCheckoutValues = {
   paymentMethod: string;
 };
 
+export type CustomerTopUpValues = {
+  amount: string;
+  paymentMethod: string;
+};
+
 export type PageResponse<T> = {
   content: T[];
   totalElements: number;

@@ -112,6 +112,9 @@ function transactionLabel(value: string) {
   if (value === "COMBINED") {
     return "Tổng hợp";
   }
+  if (value === "WALLET_TOP_UP") {
+    return "Nạp tiền";
+  }
   return value;
 }
 

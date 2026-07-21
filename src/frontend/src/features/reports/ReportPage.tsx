@@ -39,6 +39,7 @@ const transactionLabels: Record<string, string> = {
   PLAY_SESSION: "Phiên chơi",
   FOOD_ORDER: "Đơn gọi món",
   COMBINED: "Tổng hợp",
+  WALLET_TOP_UP: "Nạp tiền",
 };
 
 const methodLabels: Record<string, string> = {

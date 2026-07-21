@@ -5,6 +5,7 @@ import type {
   PaymentCheckoutValues,
   PaymentFilters,
   PaymentStatus,
+  CustomerTopUpValues,
 } from "./types";
 
 function optionalNumber(value: string) {
@@ -58,6 +59,14 @@ export async function checkoutPayment(values: PaymentCheckoutValues) {
     "/payments/checkout",
     toCheckoutPayload(values)
   );
+  return response.data;
+}
+
+export async function topUpCustomerBalance(values: CustomerTopUpValues) {
+  const response = await httpClient.post<Payment>("/payments/top-up", {
+    amount: Number(values.amount),
+    paymentMethod: optionalText(values.paymentMethod),
+  });
   return response.data;
 }
 

@@ -372,7 +372,9 @@ Frontend Reservation hiện có:
 - Tạo `PlaySessionSpecifications` để lọc theo từ khóa, khách hàng, máy và trạng thái phiên chơi.
 - Cho phép bắt đầu phiên trực tiếp trên máy đang `AVAILABLE`; khi bắt đầu phiên, máy chuyển sang `PLAYING`.
 - Cho phép check-in từ reservation đã `CONFIRMED`; hệ thống kiểm tra reservation chưa hết hạn, máy thuộc reservation và máy đang `RESERVED`.
+- Chặn bắt đầu phiên trực tiếp hoặc check-in từ reservation nếu số dư khách hàng không lớn hơn `0`; khách phải nạp tiền trước khi vào phiên chơi.
 - Khi kết thúc phiên, hệ thống tính `tongTienGio` theo số phút sử dụng và `giaTheoGio`, chuyển phiên sang `COMPLETED`, đồng thời giải phóng máy về `AVAILABLE`.
+- Khi tiền giờ đã dùng chạm số dư khách hàng, backend tự kết thúc phiên theo lịch kiểm tra định kỳ, trừ số dư về tối thiểu `0`, chuyển khách về `OFFLINE` và giải phóng máy về `AVAILABLE`.
 - Khi hủy phiên, hệ thống chuyển phiên sang `CANCELLED`, đặt tiền giờ bằng `0` và giải phóng máy về `AVAILABLE`.
 - Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/bắt đầu/kết thúc theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được hủy phiên.
 - Khách hàng chỉ được xem và thao tác phiên chơi của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
@@ -503,6 +505,7 @@ Frontend Food Service hiện có:
 - Tự tính số tiền hóa đơn từ `tongTienGio` của Play Session và `tongTien` của Food Service, không nhập tay tổng tiền từ frontend.
 - Chặn tạo trùng hóa đơn active cho cùng đơn gọi món hoặc phiên chơi độc lập để tránh ghi nhận thanh toán lặp.
 - Cho phép xác nhận thanh toán hóa đơn `PENDING`, cập nhật phương thức thanh toán và thời gian giao dịch.
+- Bổ sung API nạp tiền ví khách hàng `POST /api/payments/top-up`, dùng tài khoản `CUSTOMER` đang đăng nhập, cộng vào `khachHang.soDu` và ghi lịch sử hóa đơn `WALLET_TOP_UP` trạng thái `PAID`.
 - Cho phép cập nhật trạng thái hóa đơn theo luồng hợp lệ: hóa đơn đã thanh toán không được hủy trực tiếp, chỉ có thể chuyển sang hoàn tiền khi cần.
 - Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/tạo/thanh toán/hủy theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được cập nhật trạng thái quản trị.
 - Khách hàng chỉ được thao tác hóa đơn của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
@@ -514,6 +517,7 @@ Các API Payment hiện có:
 GET   /api/payments
 GET   /api/payments/{id}
 POST  /api/payments/checkout
+POST  /api/payments/top-up
 PATCH /api/payments/{id}/pay
 PATCH /api/payments/{id}/status
 PATCH /api/payments/{id}/cancel
@@ -540,6 +544,7 @@ Frontend Payment hiện có:
 - Tạo bộ lọc theo từ khóa, khách hàng, phiên chơi, đơn gọi món và trạng thái.
 - Tạo bảng danh sách hóa đơn có phân trang.
 - Tạo form checkout để lập hóa đơn từ phiên chơi, đơn gọi món hoặc kết hợp cả hai.
+- Hiển thị nhãn giao dịch nạp tiền `WALLET_TOP_UP` là `Nạp tiền` ở Payment, Dashboard, Report và lịch sử thanh toán khách hàng.
 - Cho phép xác nhận thanh toán, hủy hóa đơn đang chờ và cập nhật trạng thái hóa đơn trực tiếp từ bảng.
 - Kết nối frontend với các API `/api/payments`, `/api/payments/statuses` và `/api/payments/methods`.
 
@@ -629,12 +634,15 @@ Frontend Reports hiện có:
 - Bọc ứng dụng bằng `AuthBootstrap` để khi mở frontend, hệ thống tự kiểm tra token đang có, gọi `/api/auth/me`, thử refresh access token nếu cần và đưa người dùng về trạng thái phù hợp.
 - Cập nhật `httpClient` để tự gắn Bearer token vào request, tự refresh access token một lần khi API trả `401` và phát sự kiện mất phiên nếu refresh thất bại.
 - Tạo trang `/login` với form đăng nhập thật, kết nối trực tiếp API backend và lưu token sau khi đăng nhập thành công.
-- Tạo `RequireAuth` để bảo vệ toàn bộ khu vực cần đăng nhập, có thể cấu hình login path riêng cho portal vận hành và web booking khách hàng.
+- Tạo `RequireAuth` để bảo vệ toàn bộ khu vực cần đăng nhập, có thể cấu hình login path riêng cho portal vận hành, máy trạm khách hàng và web booking khách hàng.
 - Tạo `RequireRole` để chặn route theo quyền mà không phụ thuộc vào việc người dùng tự nhập URL.
 - Tạo `GuestOnly` để người đã đăng nhập không quay lại màn hình login, có thể cấu hình route chuyển tiếp theo từng khu vực.
 - Cập nhật route `/` bằng `HomePage`: `ADMIN` và `EMPLOYEE` vào Dashboard vận hành, `CUSTOMER` được chuyển sang side window `/customer`.
 - Tách rõ portal vận hành nội bộ khỏi trải nghiệm khách hàng: layout sidebar vận hành chỉ dành cho `ADMIN` và `EMPLOYEE`.
+- Tạo route `/customer/login` cho màn hình đăng nhập máy trạm riêng của khách tại quán, tách khỏi màn hình `/login` của vận hành.
+- Màn hình `/customer/login` chỉ cho tài khoản `CUSTOMER` vào phiên chơi; nếu số dư bằng `0` thì giữ khách ở màn hình này, thông báo cần nạp thêm tiền và cho nạp tiền trực tiếp trước khi vào side window.
 - Tạo route `/customer` cho side window khách hàng tại máy trong quán, có thể thu gọn/mở lại, hiển thị tài khoản, máy đang dùng, số dư, thời gian còn lại, thời gian đã dùng, đơn gọi món, lịch sử thanh toán và các thao tác nhanh.
+- Side window tự giảm số dư hiển thị theo thời gian chơi, cảnh báo khi còn khoảng `30`, `10`, `5` phút và tự gọi kết thúc phiên rồi quay về màn hình `/customer/login` khi số dư về `0`.
 - Tạo route `/booking/login` cho màn hình đăng nhập riêng của khách đặt máy từ laptop/điện thoại cá nhân; route này chỉ cho tài khoản `CUSTOMER` đi vào web booking.
 - Tạo route `/booking` cho trang đặt máy trước riêng của khách hàng, dùng tài khoản `CUSTOMER` để xem máy còn trống, chọn nhiều máy, nhập thời gian giữ chỗ và tạo reservation.
 - Giữ `/prebook` làm alias chuyển hướng về `/booking` để tránh hỏng đường dẫn cũ trong quá trình test.
@@ -656,7 +664,7 @@ Frontend Reports hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store.
 
 ## Giai đoạn tiếp theo
 

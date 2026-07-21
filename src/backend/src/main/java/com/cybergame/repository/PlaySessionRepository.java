@@ -33,6 +33,9 @@ public interface PlaySessionRepository extends JpaRepository<PlaySession, Intege
     @EntityGraph(attributePaths = {"customer", "customer.user", "machine", "machine.area"})
     List<PlaySession> findTop6ByStatusOrderByStartedAtDesc(PlaySessionStatus status);
 
+    @EntityGraph(attributePaths = {"customer", "customer.user", "machine", "machine.area"})
+    List<PlaySession> findByStatus(PlaySessionStatus status);
+
     @EntityGraph(attributePaths = {"machine", "machine.area"})
     @Query("""
             select playSession

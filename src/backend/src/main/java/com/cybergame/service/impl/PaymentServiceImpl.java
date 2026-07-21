@@ -1,5 +1,6 @@
 package com.cybergame.service.impl;
 
+import com.cybergame.dto.request.CustomerTopUpRequest;
 import com.cybergame.dto.request.PaymentCheckoutRequest;
 import com.cybergame.dto.request.PaymentPayRequest;
 import com.cybergame.dto.request.PaymentStatusUpdateRequest;
@@ -46,6 +47,7 @@ public class PaymentServiceImpl implements PaymentService {
     private static final String PLAY_SESSION_TRANSACTION = "PLAY_SESSION";
     private static final String FOOD_ORDER_TRANSACTION = "FOOD_ORDER";
     private static final String COMBINED_TRANSACTION = "COMBINED";
+    private static final String WALLET_TOP_UP_TRANSACTION = "WALLET_TOP_UP";
     private static final List<String> PAYMENT_METHODS = List.of("CASH", "CARD", "BANK_TRANSFER", "E_WALLET");
 
     private final InvoiceRepository invoiceRepository;
@@ -126,6 +128,30 @@ public class PaymentServiceImpl implements PaymentService {
         invoice.setAmount(amount);
         invoice.setPaymentMethod(toNullableText(request.paymentMethod()));
         invoice.setStatus(InvoiceStatus.PENDING);
+        invoice.setTransactionAt(LocalDateTime.now());
+
+        return paymentMapper.toResponse(invoiceRepository.save(invoice));
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponse topUp(CurrentUser currentUser, CustomerTopUpRequest request) {
+        Customer customer = getCurrentCustomer(currentUser);
+        BigDecimal amount = normalizeAmount(request.amount());
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Top-up amount must be greater than 0");
+        }
+
+        customer.setBalance(normalizeAmount(customer.getBalance()).add(amount));
+        customerRepository.save(customer);
+
+        Invoice invoice = new Invoice();
+        invoice.setCustomer(customer);
+        invoice.setEmployee(null);
+        invoice.setTransactionType(WALLET_TOP_UP_TRANSACTION);
+        invoice.setAmount(amount);
+        invoice.setPaymentMethod(resolvePaymentMethod(null, request.paymentMethod()));
+        invoice.setStatus(InvoiceStatus.PAID);
         invoice.setTransactionAt(LocalDateTime.now());
 
         return paymentMapper.toResponse(invoiceRepository.save(invoice));
@@ -332,5 +358,9 @@ public class PaymentServiceImpl implements PaymentService {
             return null;
         }
         return value.trim();
+    }
+
+    private BigDecimal normalizeAmount(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount;
     }
 }

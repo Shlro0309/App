@@ -4,6 +4,7 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { CustomerBookingLoginPage } from "@/features/customer/CustomerBookingLoginPage";
 import { CustomerPrebookPage } from "@/features/customer/CustomerPrebookPage";
 import { CustomerSideWindowPage } from "@/features/customer/CustomerSideWindowPage";
+import { CustomerStationLoginPage } from "@/features/customer/CustomerStationLoginPage";
 import { AppLayout } from "@/layouts/AppLayout";
 import { FoodServiceManagementPage } from "@/features/food-service/FoodServiceManagementPage";
 import { MachineManagementPage } from "@/features/machines/MachineManagementPage";
@@ -30,6 +31,10 @@ export const router = createBrowserRouter([
         <CustomerBookingLoginPage />
       </GuestOnly>
     ),
+  },
+  {
+    path: "/customer/login",
+    element: <CustomerStationLoginPage />,
   },
   {
     path: "/",
@@ -106,7 +111,7 @@ export const router = createBrowserRouter([
   {
     path: "/customer",
     element: (
-      <RequireAuth>
+      <RequireAuth loginPath="/customer/login">
         <RequireRole allowedRoles={["CUSTOMER"]}>
           <CustomerSideWindowPage />
         </RequireRole>

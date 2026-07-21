@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AxiosError } from "axios";
 import {
   BellRing,
@@ -23,6 +23,7 @@ import { changePassword } from "@/features/auth/authApi";
 import { createFoodOrder } from "@/features/food-service/foodServiceApi";
 import type { FoodOrder, ServiceItem } from "@/features/food-service/types";
 import type { Payment } from "@/features/payments/types";
+import { endPlaySession } from "@/features/play-sessions/playSessionApi";
 import type { PlaySession } from "@/features/play-sessions/types";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -119,6 +120,9 @@ function transactionLabel(value: string) {
   }
   if (value === "COMBINED") {
     return "Tổng hợp";
+  }
+  if (value === "WALLET_TOP_UP") {
+    return "Nạp tiền";
   }
   return value;
 }
@@ -355,6 +359,7 @@ export function CustomerSideWindowPage() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const refreshCurrentUser = useAuthStore((state) => state.refreshCurrentUser);
+  const autoEndingSessionIdRef = useRef<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState<CustomerTab>("orders");
   const [serviceVisible, setServiceVisible] = useState(false);
@@ -375,6 +380,17 @@ export function CustomerSideWindowPage() {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
 
   const customerId = user?.customerId;
+
+  useEffect(() => {
+    if (user?.role === "CUSTOMER" && (user.balance ?? 0) <= 0) {
+      navigate("/customer/login", {
+        replace: true,
+        state: {
+          message: "Số dư đã hết. Vui lòng nạp thêm tiền trước khi vào phiên chơi.",
+        },
+      });
+    }
+  }, [navigate, user?.balance, user?.role]);
 
   const loadPanel = useCallback(async () => {
     if (!customerId) {
@@ -433,7 +449,40 @@ export function CustomerSideWindowPage() {
   useEffect(() => {
     setNotifiedThresholds([]);
     setTimeWarning(null);
+    autoEndingSessionIdRef.current = null;
   }, [activeSession?.id]);
+
+  useEffect(() => {
+    if (!activeSession || visibleBalance > 0) {
+      return;
+    }
+
+    if (autoEndingSessionIdRef.current === activeSession.id) {
+      return;
+    }
+
+    autoEndingSessionIdRef.current = activeSession.id;
+    setTimeWarning({
+      threshold: 0,
+      message: "Số dư đã hết. Phiên chơi sẽ tự động kết thúc.",
+    });
+
+    void (async () => {
+      try {
+        await endPlaySession(activeSession.id);
+      } catch {
+        // The backend scheduler may have already closed this session.
+      } finally {
+        await logout();
+        navigate("/customer/login", {
+          replace: true,
+          state: {
+            message: "Phiên chơi đã kết thúc vì số dư đã hết.",
+          },
+        });
+      }
+    })();
+  }, [activeSession, logout, navigate, visibleBalance]);
 
   useEffect(() => {
     if (!activeSession || remaining <= 0) {
@@ -470,7 +519,7 @@ export function CustomerSideWindowPage() {
 
   async function handleLogout() {
     await logout();
-    navigate("/login", { replace: true });
+    navigate("/customer/login", { replace: true });
   }
 
   async function submitPassword(event: FormEvent<HTMLFormElement>) {
@@ -615,7 +664,7 @@ export function CustomerSideWindowPage() {
           <button
             className="inline-flex h-20 flex-col items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
             disabled
-            title="Chức năng nạp tiền online cần module thanh toán ví riêng."
+            title="Nạp tiền được xử lý tại màn hình đăng nhập máy trạm khi số dư đã hết."
             type="button"
           >
             <CreditCard className="size-6" />

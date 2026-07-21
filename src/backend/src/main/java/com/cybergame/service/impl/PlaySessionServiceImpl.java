@@ -9,6 +9,7 @@ import com.cybergame.entity.Machine;
 import com.cybergame.entity.PlaySession;
 import com.cybergame.entity.Reservation;
 import com.cybergame.entity.enums.MachineStatus;
+import com.cybergame.entity.enums.OnlineStatus;
 import com.cybergame.entity.enums.PlaySessionStatus;
 import com.cybergame.entity.enums.ReservationStatus;
 import com.cybergame.exception.BusinessException;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,6 +87,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
     @Transactional
     public PlaySessionResponse startSession(CurrentUser currentUser, PlaySessionStartRequest request) {
         Customer customer = resolveCustomer(currentUser, request.customerId());
+        validateCustomerCanStartSession(customer);
         Machine machine = getMachine(request.machineId());
         validateCanStartMachine(machine, Set.of(MachineStatus.AVAILABLE));
 
@@ -111,6 +114,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
             reservationRepository.save(reservation);
             throw new BusinessException(HttpStatus.CONFLICT, "Reservation has expired");
         }
+        validateCustomerCanStartSession(reservation.getCustomer());
 
         Set<Integer> normalizedMachineIds = new LinkedHashSet<>(request.machineIds());
         List<Machine> selectedMachines = reservation.getMachines()
@@ -149,12 +153,25 @@ public class PlaySessionServiceImpl implements PlaySessionService {
             throw new BusinessException(HttpStatus.CONFLICT, "Play session is already closed");
         }
 
-        playSession.setEndedAt(LocalDateTime.now());
-        playSession.setTotalHourlyAmount(calculateHourlyAmount(playSession));
-        playSession.setStatus(PlaySessionStatus.COMPLETED);
-        releaseMachine(playSession.getMachine());
+        completePlaySession(playSession, LocalDateTime.now());
 
         return playSessionMapper.toResponse(playSessionRepository.save(playSession));
+    }
+
+    @Scheduled(
+            initialDelayString = "${app.play-session.balance-check-initial-delay-ms:30000}",
+            fixedDelayString = "${app.play-session.balance-check-fixed-delay-ms:30000}"
+    )
+    @Transactional
+    public void endSessionsWithDepletedBalance() {
+        LocalDateTime now = LocalDateTime.now();
+        playSessionRepository.findByStatus(PlaySessionStatus.ACTIVE)
+                .stream()
+                .filter(playSession -> hasDepletedBalance(playSession, now))
+                .forEach(playSession -> {
+                    completePlaySession(playSession, now);
+                    playSessionRepository.save(playSession);
+                });
     }
 
     @Override
@@ -225,6 +242,15 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         }
     }
 
+    private void validateCustomerCanStartSession(Customer customer) {
+        if (normalizeAmount(customer.getBalance()).compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "Customer balance is depleted. Please top up before starting a play session"
+            );
+        }
+    }
+
     private PlaySession createActiveSession(Customer customer, Machine machine) {
         PlaySession playSession = new PlaySession();
         playSession.setCustomer(customer);
@@ -240,15 +266,50 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         return savedPlaySession;
     }
 
-    private BigDecimal calculateHourlyAmount(PlaySession playSession) {
-        long minutes = Math.max(
-                Duration.between(playSession.getStartedAt(), playSession.getEndedAt()).toMinutes(),
-                1L
+    private void completePlaySession(PlaySession playSession, LocalDateTime endedAt) {
+        playSession.setEndedAt(endedAt);
+        playSession.setTotalHourlyAmount(calculateHourlyAmount(playSession, endedAt));
+        playSession.setStatus(PlaySessionStatus.COMPLETED);
+        chargeCustomerBalance(playSession.getCustomer(), playSession.getTotalHourlyAmount());
+        releaseMachine(playSession.getMachine());
+    }
+
+    private boolean hasDepletedBalance(PlaySession playSession, LocalDateTime now) {
+        BigDecimal balance = normalizeAmount(playSession.getCustomer().getBalance());
+        if (balance.compareTo(BigDecimal.ZERO) <= 0) {
+            return true;
+        }
+
+        return calculateHourlyAmount(playSession, now).compareTo(balance) >= 0;
+    }
+
+    private void chargeCustomerBalance(Customer customer, BigDecimal amount) {
+        BigDecimal currentBalance = normalizeAmount(customer.getBalance());
+        BigDecimal nextBalance = currentBalance.subtract(normalizeAmount(amount));
+        if (nextBalance.compareTo(BigDecimal.ZERO) < 0) {
+            nextBalance = BigDecimal.ZERO;
+        }
+
+        customer.setBalance(nextBalance.setScale(2, RoundingMode.HALF_UP));
+        if (customer.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
+            customer.setOnlineStatus(OnlineStatus.OFFLINE);
+        }
+        customerRepository.save(customer);
+    }
+
+    private BigDecimal calculateHourlyAmount(PlaySession playSession, LocalDateTime endedAt) {
+        long seconds = Math.max(
+                Duration.between(playSession.getStartedAt(), endedAt).toSeconds(),
+                60L
         );
         return playSession.getMachine()
                 .getHourlyPrice()
-                .multiply(BigDecimal.valueOf(minutes))
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+                .multiply(BigDecimal.valueOf(seconds))
+                .divide(BigDecimal.valueOf(3600), 2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal normalizeAmount(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount;
     }
 
     private void releaseMachine(Machine machine) {

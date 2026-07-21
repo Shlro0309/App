@@ -1,5 +1,6 @@
 package com.cybergame.controller;
 
+import com.cybergame.dto.request.CustomerTopUpRequest;
 import com.cybergame.dto.request.PaymentCheckoutRequest;
 import com.cybergame.dto.request.PaymentPayRequest;
 import com.cybergame.dto.request.PaymentStatusUpdateRequest;
@@ -65,6 +66,16 @@ public class PaymentController {
             @Valid @RequestBody PaymentCheckoutRequest request
     ) {
         return paymentService.checkout(currentUser, request);
+    }
+
+    @PostMapping("/top-up")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public PaymentResponse topUp(
+            @AuthenticationPrincipal CurrentUser currentUser,
+            @Valid @RequestBody CustomerTopUpRequest request
+    ) {
+        return paymentService.topUp(currentUser, request);
     }
 
     @PatchMapping("/{id}/pay")
