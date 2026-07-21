@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { FoodServiceManagementPage } from "@/features/food-service/FoodServiceManagementPage";
 import { MachineManagementPage } from "@/features/machines/MachineManagementPage";
 import { PlaySessionManagementPage } from "@/features/play-sessions/PlaySessionManagementPage";
 import { ReservationManagementPage } from "@/features/reservations/ReservationManagementPage";
@@ -25,6 +26,10 @@ export const router = createBrowserRouter([
       {
         path: "play-sessions",
         element: <PlaySessionManagementPage />,
+      },
+      {
+        path: "food-services",
+        element: <FoodServiceManagementPage />,
       },
     ],
   },

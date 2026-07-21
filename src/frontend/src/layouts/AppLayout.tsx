@@ -15,7 +15,7 @@ const navigationItems = [
   { label: "Máy trạm", path: "/machines", icon: Monitor },
   { label: "Đặt máy", path: "/reservations", icon: CalendarClock },
   { label: "Phiên chơi", path: "/play-sessions", icon: Timer },
-  { label: "Dịch vụ", icon: Utensils },
+  { label: "Dịch vụ", path: "/food-services", icon: Utensils },
   { label: "Thanh toán", icon: Receipt },
   { label: "Báo cáo", icon: BarChart3 },
 ];

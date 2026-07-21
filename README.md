@@ -137,8 +137,8 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 7 | Machine Management | Đã hoàn thành backend, đã bổ sung frontend quản lý máy ở workspace hiện tại |
 | 8 | Reservation | Đã hoàn thành backend, đã bổ sung frontend quản lý đặt máy ở workspace hiện tại |
 | 9 | Play Session | Đã hoàn thành backend, đã bổ sung frontend quản lý phiên chơi ở workspace hiện tại |
-| 10 | Food Service | Giai đoạn tiếp theo |
-| 11 | Payment | Chưa thực hiện |
+| 10 | Food Service | Đã hoàn thành backend, đã bổ sung frontend quản lý dịch vụ và đơn gọi món ở workspace hiện tại |
+| 11 | Payment | Giai đoạn tiếp theo |
 | 12 | Dashboard | Mới có giao diện nền ban đầu |
 | 13 | Reports | Chưa thực hiện |
 | 14 | Frontend | Đang phát triển theo từng module |
@@ -402,6 +402,81 @@ Frontend Play Session hiện có:
 - Cho phép hủy phiên active trực tiếp từ bảng cho tài khoản có quyền.
 - Kết nối frontend với các API `/api/play-sessions`, `/api/play-sessions/statuses` và `/api/play-sessions/from-reservation`.
 
+### Giai đoạn 8: Food Service
+
+Đã hoàn thành:
+
+- Tạo module dịch vụ/đồ ăn theo mô hình `Controller -> Service -> Repository`.
+- Tạo `FoodServiceController` cho nhóm API `/api/food-services`.
+- Tạo `FoodOrderController` cho nhóm API `/api/food-orders`.
+- Tạo `FoodServiceManagementService` và `FoodServiceManagementServiceImpl` để xử lý nghiệp vụ danh mục dịch vụ, tồn kho và đơn gọi món.
+- Tạo DTO riêng cho tạo/cập nhật dịch vụ, cập nhật trạng thái dịch vụ, tạo đơn gọi món, cập nhật trạng thái đơn và response chi tiết.
+- Tạo `ServiceItemMapper` và `CustomerOrderMapper` bằng MapStruct để chuyển Entity sang DTO, không trả Entity trực tiếp ra API.
+- Mở rộng `ServiceItemRepository` và `CustomerOrderRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
+- Tạo `ServiceItemSpecifications` để lọc dịch vụ theo từ khóa, loại dịch vụ và trạng thái.
+- Tạo `CustomerOrderSpecifications` để lọc đơn gọi món theo từ khóa, khách hàng, phiên chơi và trạng thái.
+- Cho phép quản lý danh mục dịch vụ, giá, loại dịch vụ, ảnh, tồn kho và trạng thái `ACTIVE`/`INACTIVE`.
+- API xóa dịch vụ được xử lý theo hướng chuyển trạng thái sang `INACTIVE` thay vì xóa vật lý để giữ an toàn dữ liệu lịch sử.
+- Cho phép tạo đơn gọi món gắn với khách hàng và tùy chọn gắn với phiên chơi đang `ACTIVE`.
+- Khi tạo đơn gọi món, hệ thống chỉ nhận dịch vụ `ACTIVE`, kiểm tra tồn kho và trừ tồn kho trong transaction.
+- Khi hủy đơn chưa hoàn tất, hệ thống chuyển đơn sang `CANCELLED` và hoàn lại tồn kho.
+- Khi cập nhật đơn sang `COMPLETED`, hệ thống khóa luồng đổi trạng thái ngược để tránh sai lệch dữ liệu cho Payment.
+- Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem dịch vụ và tạo đơn theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được quản lý dịch vụ và cập nhật trạng thái đơn.
+- Khách hàng chỉ được xem/tạo/hủy đơn của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
+- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+
+Các API Food Service hiện có:
+
+```text
+GET    /api/food-services
+GET    /api/food-services/{id}
+POST   /api/food-services
+PUT    /api/food-services/{id}
+PATCH  /api/food-services/{id}/status
+DELETE /api/food-services/{id}
+GET    /api/food-services/statuses
+
+GET    /api/food-orders
+GET    /api/food-orders/{id}
+POST   /api/food-orders
+PATCH  /api/food-orders/{id}/status
+PATCH  /api/food-orders/{id}/cancel
+GET    /api/food-orders/statuses
+```
+
+Các tham số hỗ trợ cho `GET /api/food-services`:
+
+```text
+keyword: tìm theo tên dịch vụ, loại dịch vụ
+serviceType: lọc theo loại dịch vụ
+status: ACTIVE, INACTIVE
+page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
+```
+
+Các tham số hỗ trợ cho `GET /api/food-orders`:
+
+```text
+keyword: tìm theo tên khách hàng, số điện thoại, email, tên dịch vụ, loại dịch vụ
+customerId: lọc theo khách hàng
+playSessionId: lọc theo phiên chơi
+status: PENDING, PREPARING, COMPLETED, CANCELLED
+page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
+```
+
+Frontend Food Service hiện có:
+
+- Tạo route `/food-services` trong React Router.
+- Bật điều hướng thật cho mục Dịch vụ trên sidebar/header.
+- Tạo trang quản lý dịch vụ với hai tab: Dịch vụ và Đơn gọi món.
+- Tạo bộ lọc dịch vụ theo từ khóa, loại dịch vụ và trạng thái.
+- Tạo bảng danh sách dịch vụ có phân trang.
+- Tạo form thêm/sửa dịch vụ, cập nhật tồn kho và trạng thái.
+- Tạo bộ lọc đơn gọi món theo từ khóa, khách hàng, phiên chơi và trạng thái.
+- Tạo bảng danh sách đơn gọi món có phân trang.
+- Tạo form tạo đơn gọi món với nhiều dòng dịch vụ.
+- Cho phép cập nhật trạng thái và hủy đơn gọi món trực tiếp từ bảng.
+- Kết nối frontend với các API `/api/food-services`, `/api/food-services/statuses`, `/api/food-orders` và `/api/food-orders/statuses`.
+
 ### Điều chỉnh cấu trúc thư mục
 
 Đã hoàn thành:
@@ -416,14 +491,14 @@ Frontend Play Session hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines`, `/reservations` và `/play-sessions` đã được bổ sung vào React Router; `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/machines`, `/reservations`, `/play-sessions` và `/food-services` đã được bổ sung vào React Router; `/machines` đã được kiểm tra trả về trang Vite thành công qua dev server local.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Food Service:
+Theo lộ trình trong file yêu cầu, giai đoạn kế tiếp là Payment:
 
-- Thiết kế API quản lý dịch vụ/đồ ăn dựa trên schema hiện có.
-- Cho phép quản lý danh sách dịch vụ và trạng thái khả dụng.
-- Cho phép tạo đơn gọi món gắn với khách hàng hoặc phiên chơi.
-- Chuẩn bị dữ liệu chi tiết đơn hàng cho Payment.
+- Thiết kế API hóa đơn/thanh toán dựa trên schema `hoaDon`.
+- Tổng hợp tiền giờ từ Play Session và tiền dịch vụ từ Food Service.
+- Cho phép tạo hóa đơn cho phiên chơi, đơn gọi món hoặc cả hai theo quan hệ database hiện có.
+- Cập nhật trạng thái thanh toán và chuẩn bị dữ liệu cho Dashboard/Reports.
 - Giữ nguyên schema database và tiếp tục trả DTO thay vì Entity.
