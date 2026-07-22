@@ -119,8 +119,6 @@ public class PlaySessionServiceImpl implements PlaySessionService {
             reservationRepository.save(reservation);
             throw new BusinessException(HttpStatus.CONFLICT, "Reservation has expired");
         }
-        validateCustomerCanStartSession(reservation.getCustomer());
-
         Set<Integer> normalizedMachineIds = new LinkedHashSet<>(request.machineIds());
         List<Machine> selectedMachines = reservation.getMachines()
                 .stream()
@@ -131,17 +129,18 @@ public class PlaySessionServiceImpl implements PlaySessionService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "One or more machines do not belong to reservation");
         }
 
+        selectedMachines.forEach(machine -> validateCanStartMachine(machine, Set.of(MachineStatus.RESERVED)));
+        refundReservationDeposit(reservation, selectedMachines);
+        validateCustomerCanStartSession(reservation.getCustomer());
+
         List<PlaySession> playSessions = selectedMachines.stream()
-                .map(machine -> {
-                    validateCanStartMachine(machine, Set.of(MachineStatus.RESERVED));
-                    return createActiveSession(reservation.getCustomer(), machine);
-                })
+                .map(machine -> createActiveSession(reservation.getCustomer(), machine))
                 .toList();
 
         if (reservation.getMachines().stream().noneMatch(machine -> machine.getStatus() == MachineStatus.RESERVED)) {
             reservation.setStatus(ReservationStatus.COMPLETED);
-            reservationRepository.save(reservation);
         }
+        reservationRepository.save(reservation);
 
         playSessions.forEach(playSession -> {
             publishPlaySessionChanged(playSession, "STARTED_FROM_RESERVATION");
@@ -180,12 +179,16 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         LocalDateTime now = LocalDateTime.now();
         playSessionRepository.findByStatus(PlaySessionStatus.ACTIVE)
                 .stream()
-                .filter(playSession -> hasDepletedBalance(playSession, now))
                 .forEach(playSession -> {
-                    completePlaySession(playSession, now);
+                    boolean depleted = applyElapsedCharge(playSession, now);
+                    if (depleted) {
+                        closeDepletedSession(playSession, now);
+                    }
                     playSessionRepository.save(playSession);
-                    publishPlaySessionChanged(playSession, "AUTO_COMPLETED");
-                    publishMachineChanged(playSession.getMachine(), MachineStatus.AVAILABLE.name());
+                    publishPlaySessionChanged(playSession, depleted ? "AUTO_COMPLETED" : "BALANCE_UPDATED");
+                    if (depleted) {
+                        publishMachineChanged(playSession.getMachine(), MachineStatus.AVAILABLE.name());
+                    }
                 });
     }
 
@@ -284,33 +287,79 @@ public class PlaySessionServiceImpl implements PlaySessionService {
     }
 
     private void completePlaySession(PlaySession playSession, LocalDateTime endedAt) {
+        applyElapsedCharge(playSession, endedAt);
         playSession.setEndedAt(endedAt);
-        playSession.setTotalHourlyAmount(calculateHourlyAmount(playSession, endedAt));
         playSession.setStatus(PlaySessionStatus.COMPLETED);
-        chargeCustomerBalance(playSession.getCustomer(), playSession.getTotalHourlyAmount());
         releaseMachine(playSession.getMachine());
     }
 
-    private boolean hasDepletedBalance(PlaySession playSession, LocalDateTime now) {
-        BigDecimal balance = normalizeAmount(playSession.getCustomer().getBalance());
-        if (balance.compareTo(BigDecimal.ZERO) <= 0) {
+    private void closeDepletedSession(PlaySession playSession, LocalDateTime endedAt) {
+        playSession.setEndedAt(endedAt);
+        playSession.setStatus(PlaySessionStatus.COMPLETED);
+        releaseMachine(playSession.getMachine());
+    }
+
+    private boolean applyElapsedCharge(PlaySession playSession, LocalDateTime now) {
+        Customer customer = playSession.getCustomer();
+        BigDecimal currentBalance = normalizeAmount(customer.getBalance());
+        if (currentBalance.compareTo(BigDecimal.ZERO) <= 0) {
+            customer.setOnlineStatus(OnlineStatus.OFFLINE);
+            customerRepository.save(customer);
             return true;
         }
 
-        return calculateHourlyAmount(playSession, now).compareTo(balance) >= 0;
-    }
-
-    private void chargeCustomerBalance(Customer customer, BigDecimal amount) {
-        BigDecimal currentBalance = normalizeAmount(customer.getBalance());
-        BigDecimal nextBalance = currentBalance.subtract(normalizeAmount(amount));
-        if (nextBalance.compareTo(BigDecimal.ZERO) < 0) {
-            nextBalance = BigDecimal.ZERO;
+        BigDecimal chargedAmount = normalizeAmount(playSession.getTotalHourlyAmount());
+        BigDecimal targetAmount = calculateHourlyAmount(playSession, now);
+        BigDecimal chargeDelta = targetAmount.subtract(chargedAmount);
+        if (chargeDelta.compareTo(BigDecimal.ZERO) <= 0) {
+            return false;
         }
 
+        BigDecimal actualCharge = chargeDelta.compareTo(currentBalance) > 0
+                ? currentBalance
+                : chargeDelta;
+        BigDecimal nextBalance = currentBalance.subtract(actualCharge);
+        playSession.setTotalHourlyAmount(
+                chargedAmount
+                        .add(actualCharge)
+                        .setScale(2, RoundingMode.HALF_UP)
+        );
         customer.setBalance(nextBalance.setScale(2, RoundingMode.HALF_UP));
         if (customer.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
             customer.setOnlineStatus(OnlineStatus.OFFLINE);
         }
+        customerRepository.save(customer);
+        return customer.getBalance().compareTo(BigDecimal.ZERO) <= 0 || actualCharge.compareTo(chargeDelta) < 0;
+    }
+
+    private void refundReservationDeposit(Reservation reservation, List<Machine> selectedMachines) {
+        BigDecimal outstandingDeposit = normalizeAmount(reservation.getDeposit());
+        if (outstandingDeposit.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        BigDecimal requestedRefund = selectedMachines.stream()
+                .map(machine -> normalizeAmount(machine.getHourlyPrice()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal refundAmount = requestedRefund.compareTo(outstandingDeposit) > 0
+                ? outstandingDeposit
+                : requestedRefund;
+
+        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        Customer customer = reservation.getCustomer();
+        customer.setBalance(
+                normalizeAmount(customer.getBalance())
+                        .add(refundAmount)
+                        .setScale(2, RoundingMode.HALF_UP)
+        );
+        reservation.setDeposit(
+                outstandingDeposit
+                        .subtract(refundAmount)
+                        .setScale(2, RoundingMode.HALF_UP)
+        );
         customerRepository.save(customer);
     }
 

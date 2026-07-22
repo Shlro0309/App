@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
+  XCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { ApiError } from "@/types/api";
@@ -19,10 +20,13 @@ import type {
 } from "@/features/reservations/types";
 import { useAuthStore } from "@/stores/authStore";
 import {
+  cancelCustomerReservation,
   createCustomerReservation,
   getCustomerAvailableMachines,
   getCustomerReservations,
 } from "./customerApi";
+
+const CUSTOMER_CANCEL_WINDOW_MS = 5 * 60 * 1000;
 
 function getErrorMessage(error: unknown) {
   if (error instanceof AxiosError) {
@@ -41,8 +45,8 @@ function getErrorMessage(error: unknown) {
 
 function defaultExpiresAt() {
   const date = new Date();
-  date.setHours(date.getHours() + 2);
-  date.setMinutes(0, 0, 0);
+  date.setMinutes(date.getMinutes() + 30);
+  date.setSeconds(0, 0);
   return toDateTimeLocalValue(date);
 }
 
@@ -84,6 +88,14 @@ function formatCountdown(totalSeconds: number) {
     .join(":");
 }
 
+function canCancelCustomerReservation(reservation: Reservation, now: Date) {
+  return (
+    reservation.status === "CONFIRMED" &&
+    now.getTime() <=
+      new Date(reservation.reservedAt).getTime() + CUSTOMER_CANCEL_WINDOW_MS
+  );
+}
+
 const statusLabels: Record<string, string> = {
   PENDING: "Chờ xác nhận",
   CONFIRMED: "Đã xác nhận",
@@ -111,27 +123,29 @@ export function CustomerPrebookPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const refreshCurrentUser = useAuthStore((state) => state.refreshCurrentUser);
   const [keyword, setKeyword] = useState("");
   const [machines, setMachines] = useState<ReservationMachine[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [selectedMachineIds, setSelectedMachineIds] = useState<number[]>([]);
-  const [expiresAt, setExpiresAt] = useState(defaultExpiresAt);
-  const [deposit, setDeposit] = useState("0");
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const customerId = user?.customerId;
 
-  const loadData = useCallback(async (nextKeyword: string) => {
+  const loadData = useCallback(async (nextKeyword: string, showLoading = true) => {
     if (!customerId) {
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [machineData, reservationData] = await Promise.all([
@@ -143,7 +157,9 @@ export function CustomerPrebookPage() {
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, [customerId]);
 
@@ -156,8 +172,16 @@ export function CustomerPrebookPage() {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void loadData(keyword, false);
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [keyword, loadData]);
+
   useRealtimeEvents(["RESERVATION_CHANGED", "MACHINE_STATUS_CHANGED"], () => {
-    void loadData(keyword);
+    void loadData(keyword, false);
   });
 
   const selectedMachines = useMemo(
@@ -193,10 +217,11 @@ export function CustomerPrebookPage() {
     setSuccess(null);
     try {
       await createCustomerReservation({
-        expiresAt,
-        deposit,
+        expiresAt: defaultExpiresAt(),
+        deposit: String(estimatedHourlyTotal),
         machineIds: selectedMachineIds,
       });
+      await refreshCurrentUser();
       setSuccess("Đã đặt máy trước thành công. Dùng mã đặt trước trong lịch đặt để check-in tại máy.");
       setSelectedMachineIds([]);
       await loadData(keyword);
@@ -204,6 +229,22 @@ export function CustomerPrebookPage() {
       setError(getErrorMessage(saveError));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function cancelReservationItem(reservation: Reservation) {
+    setCancellingId(reservation.id);
+    setError(null);
+    setSuccess(null);
+    try {
+      await cancelCustomerReservation(reservation.id);
+      await refreshCurrentUser();
+      setSuccess(`Đã hủy đặt máy ${reservation.reservationCode}. Tiền cọc đã hoàn lại vào số dư.`);
+      await loadData(keyword);
+    } catch (cancelError) {
+      setError(getErrorMessage(cancelError));
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -246,7 +287,7 @@ export function CustomerPrebookPage() {
 
       <section className="mx-auto grid max-w-7xl gap-5 px-4 py-6">
         <form
-          className="grid gap-3 rounded-md border bg-background p-4 lg:grid-cols-[minmax(0,1fr)_180px_180px_160px_auto]"
+          className="grid gap-3 rounded-md border bg-background p-4 lg:grid-cols-[minmax(0,1fr)_180px_180px_auto]"
           onSubmit={submitReservation}
         >
           <label className="grid gap-2 text-sm lg:col-span-2">
@@ -257,25 +298,18 @@ export function CustomerPrebookPage() {
                 : "Chưa chọn máy"}
             </div>
           </label>
-          <label className="grid gap-2 text-sm">
-            <span className="text-muted-foreground">Giữ chỗ đến</span>
-            <input
-              className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
-              type="datetime-local"
-              value={expiresAt}
-              onChange={(event) => setExpiresAt(event.target.value)}
-            />
-          </label>
-          <label className="grid gap-2 text-sm">
+          <div className="grid gap-2 text-sm">
+            <span className="text-muted-foreground">Giữ chỗ</span>
+            <div className="grid h-10 content-center rounded-md border bg-muted/20 px-3">
+              30 phút sau khi xác nhận
+            </div>
+          </div>
+          <div className="grid gap-2 text-sm">
             <span className="text-muted-foreground">Đặt cọc</span>
-            <input
-              className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
-              min={0}
-              type="number"
-              value={deposit}
-              onChange={(event) => setDeposit(event.target.value)}
-            />
-          </label>
+            <div className="grid h-10 content-center rounded-md border bg-muted/20 px-3">
+              {formatCurrency(estimatedHourlyTotal)}
+            </div>
+          </div>
           <div className="flex items-end">
             <button
               className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
@@ -399,7 +433,7 @@ export function CustomerPrebookPage() {
                 <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Đặt cọc</span>
                   <span className="font-medium">
-                    {formatCurrency(Number(deposit || 0))}
+                    {formatCurrency(estimatedHourlyTotal)}
                   </span>
                 </div>
               </div>
@@ -416,8 +450,11 @@ export function CustomerPrebookPage() {
                     Chưa có lịch đặt máy.
                   </p>
                 ) : null}
-                {reservations.map((reservation) => (
-                  <div className="grid gap-2 p-4" key={reservation.id}>
+                {reservations.map((reservation) => {
+                  const canCancel = canCancelCustomerReservation(reservation, now);
+
+                  return (
+                    <div className="grid gap-2 p-4" key={reservation.id}>
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-mono text-sm font-semibold">
                         {reservation.reservationCode}
@@ -436,8 +473,20 @@ export function CustomerPrebookPage() {
                         Còn {formatCountdown(remainingSeconds(reservation.expiresAt, now))}
                       </div>
                     ) : null}
-                  </div>
-                ))}
+                      {canCancel ? (
+                        <button
+                          className="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-red-400/40 px-3 text-xs text-red-200 transition hover:bg-red-400/10 disabled:opacity-60"
+                          disabled={cancellingId === reservation.id}
+                          type="button"
+                          onClick={() => void cancelReservationItem(reservation)}
+                        >
+                          <XCircle className="size-3.5" />
+                          {cancellingId === reservation.id ? "Đang hủy" : "Hủy đặt"}
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </aside>

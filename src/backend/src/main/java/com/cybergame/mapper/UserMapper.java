@@ -13,6 +13,7 @@ public interface UserMapper {
     @Mapping(target = "role", source = "role.name")
     @Mapping(target = "status", expression = "java(user.getStatus().name())")
     @Mapping(target = "customerId", expression = "java(user.getCustomer() == null ? null : user.getCustomer().getId())")
+    @Mapping(target = "customerBalance", expression = "java(user.getCustomer() == null ? null : user.getCustomer().getBalance())")
     @Mapping(target = "employeeId", expression = "java(user.getEmployee() == null ? null : user.getEmployee().getId())")
     UserResponse toResponse(User user);
 

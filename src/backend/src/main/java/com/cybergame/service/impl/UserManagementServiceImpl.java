@@ -1,5 +1,6 @@
 package com.cybergame.service.impl;
 
+import com.cybergame.dto.request.UserBalanceUpdateRequest;
 import com.cybergame.dto.request.UserCreateRequest;
 import com.cybergame.dto.request.UserRoleUpdateRequest;
 import com.cybergame.dto.request.UserStatusUpdateRequest;
@@ -21,12 +22,14 @@ import com.cybergame.repository.EmployeeRepository;
 import com.cybergame.repository.RoleRepository;
 import com.cybergame.repository.UserRepository;
 import com.cybergame.repository.UserSpecifications;
+import com.cybergame.security.CurrentUser;
 import com.cybergame.service.UserManagementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +45,8 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private static final String CUSTOMER_ROLE = "CUSTOMER";
     private static final String EMPLOYEE_ROLE = "EMPLOYEE";
+    private static final String ROLE_ADMIN = "ROLE_ADMIN";
+    private static final String ROLE_EMPLOYEE = "ROLE_EMPLOYEE";
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -52,10 +57,11 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserResponse> getUsers(String keyword, String role, AccountStatus status, Pageable pageable) {
+    public Page<UserResponse> getUsers(CurrentUser currentUser, String keyword, String role, AccountStatus status, Pageable pageable) {
+        String effectiveRole = canManageAllUsers(currentUser) ? role : CUSTOMER_ROLE;
         Specification<User> specification = Specification
                 .where(UserSpecifications.hasKeyword(keyword))
-                .and(UserSpecifications.hasRole(role))
+                .and(UserSpecifications.hasRole(effectiveRole))
                 .and(UserSpecifications.hasStatus(status));
 
         return userRepository.findAll(specification, pageable)
@@ -64,18 +70,21 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserResponse getUser(Integer id) {
-        return userMapper.toResponse(getUserById(id));
+    public UserResponse getUser(CurrentUser currentUser, Integer id) {
+        User user = getUserById(id);
+        validateCanAccessUser(currentUser, user);
+        return userMapper.toResponse(user);
     }
 
     @Override
     @Transactional
-    public UserResponse createUser(UserCreateRequest request) {
+    public UserResponse createUser(CurrentUser currentUser, UserCreateRequest request) {
         String username = request.username().trim();
         validateUniqueUsername(username);
         validateUniqueEmail(null, request.email());
 
         Role role = getRole(request.role());
+        validateCanUseRole(currentUser, role);
 
         User user = new User();
         user.setUsername(username);
@@ -100,8 +109,9 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional
-    public UserResponse updateUser(Integer id, UserUpdateRequest request) {
+    public UserResponse updateUser(CurrentUser currentUser, Integer id, UserUpdateRequest request) {
         User user = getUserById(id);
+        validateCanAccessUser(currentUser, user);
         validateUniqueEmail(user.getId(), request.email());
 
         user.setFullName(normalizeBlank(request.fullName()));
@@ -113,15 +123,17 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional
-    public UserResponse updateStatus(Integer id, UserStatusUpdateRequest request) {
+    public UserResponse updateStatus(CurrentUser currentUser, Integer id, UserStatusUpdateRequest request) {
         User user = getUserById(id);
+        validateCanAccessUser(currentUser, user);
         user.setStatus(request.status());
         return userMapper.toResponse(userRepository.save(user));
     }
 
     @Override
     @Transactional
-    public UserResponse updateRole(Integer id, UserRoleUpdateRequest request) {
+    public UserResponse updateRole(CurrentUser currentUser, Integer id, UserRoleUpdateRequest request) {
+        validateCanManageRoles(currentUser);
         User user = getUserById(id);
         Role role = getRole(request.role());
 
@@ -138,8 +150,23 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional
-    public MessageResponse deleteUser(Integer id) {
+    public UserResponse updateBalance(CurrentUser currentUser, Integer id, UserBalanceUpdateRequest request) {
         User user = getUserById(id);
+        validateCanAccessUser(currentUser, user);
+        if (user.getCustomer() == null) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Only customer account balance can be updated");
+        }
+
+        user.getCustomer().setBalance(request.balance());
+        customerRepository.save(user.getCustomer());
+        return userMapper.toResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public MessageResponse deleteUser(CurrentUser currentUser, Integer id) {
+        User user = getUserById(id);
+        validateCanAccessUser(currentUser, user);
         user.setStatus(AccountStatus.LOCKED);
         userRepository.save(user);
         return new MessageResponse("User account has been locked");
@@ -147,9 +174,10 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<RoleResponse> getRoles() {
+    public List<RoleResponse> getRoles(CurrentUser currentUser) {
         return roleRepository.findAll()
                 .stream()
+                .filter(role -> canManageAllUsers(currentUser) || isCustomerRole(role))
                 .map(userMapper::toRoleResponse)
                 .toList();
     }
@@ -207,6 +235,47 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private boolean isEmployeeRole(Role role) {
         return EMPLOYEE_ROLE.equalsIgnoreCase(role.getName());
+    }
+
+    private void validateCanAccessUser(CurrentUser currentUser, User user) {
+        if (canManageAllUsers(currentUser)) {
+            return;
+        }
+        if (canManageCustomerUsers(currentUser) && user.getRole() != null && CUSTOMER_ROLE.equalsIgnoreCase(user.getRole().getName())) {
+            return;
+        }
+        throw new BusinessException(HttpStatus.FORBIDDEN, "Employee can only manage customer accounts");
+    }
+
+    private void validateCanUseRole(CurrentUser currentUser, Role role) {
+        if (canManageAllUsers(currentUser)) {
+            return;
+        }
+        if (canManageCustomerUsers(currentUser) && isCustomerRole(role)) {
+            return;
+        }
+        throw new BusinessException(HttpStatus.FORBIDDEN, "Employee can only create customer accounts");
+    }
+
+    private void validateCanManageRoles(CurrentUser currentUser) {
+        if (!canManageAllUsers(currentUser)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin can update account role");
+        }
+    }
+
+    private boolean canManageAllUsers(CurrentUser currentUser) {
+        return hasAuthority(currentUser, ROLE_ADMIN);
+    }
+
+    private boolean canManageCustomerUsers(CurrentUser currentUser) {
+        return hasAuthority(currentUser, ROLE_EMPLOYEE);
+    }
+
+    private boolean hasAuthority(CurrentUser currentUser, String authorityName) {
+        return currentUser.getAuthorities()
+                .stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(authorityName::equals);
     }
 
     private String normalizeBlank(String value) {

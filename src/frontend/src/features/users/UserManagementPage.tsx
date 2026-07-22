@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AxiosError } from "axios";
 import {
   CheckCircle2,
@@ -23,9 +23,12 @@ import {
   getUsers,
   lockUser,
   updateUser,
+  updateUserBalance,
   updateUserRole,
   updateUserStatus,
 } from "./userApi";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
+import { useAuthStore } from "@/stores/authStore";
 import type {
   AccountStatus,
   PageResponse,
@@ -132,6 +135,7 @@ function RoleBadge({ role }: { role: UserRole }) {
 }
 
 type UserFormProps = {
+  canManageRoles: boolean;
   mode: "create" | "edit";
   roles: Role[];
   saving: boolean;
@@ -142,6 +146,7 @@ type UserFormProps = {
 };
 
 function UserForm({
+  canManageRoles,
   mode,
   roles,
   saving,
@@ -194,6 +199,7 @@ function UserForm({
         <span className="text-muted-foreground">Vai trò</span>
         <select
           className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+          disabled={!canManageRoles}
           value={values.role}
           onChange={(event) =>
             updateField("role", event.target.value as UserRole)
@@ -265,6 +271,9 @@ function UserForm({
 }
 
 export function UserManagementPage() {
+  const currentUser = useAuthStore((state) => state.user);
+  const canManageRoles = currentUser?.role === "ADMIN";
+  const customerAccountsOnly = currentUser?.role === "EMPLOYEE";
   const [roles, setRoles] = useState<Role[]>([
     { id: 1, name: "ADMIN", description: null },
     { id: 2, name: "EMPLOYEE", description: null },
@@ -279,6 +288,7 @@ export function UserManagementPage() {
   const [formVisible, setFormVisible] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formValues, setFormValues] = useState<UserFormValues>(emptyForm);
+  const [balanceDrafts, setBalanceDrafts] = useState<Record<number, string>>({});
 
   const users = useMemo(() => page?.content ?? [], [page]);
   const summary = useMemo(() => {
@@ -295,44 +305,81 @@ export function UserManagementPage() {
     };
   }, [page, users]);
 
-  useEffect(() => {
-    void loadInitialData();
-  }, []);
-
-  async function loadInitialData() {
+  const loadInitialData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const initialFilters = customerAccountsOnly
+      ? { ...defaultFilters, role: "CUSTOMER" }
+      : defaultFilters;
     try {
       const [roleData, userData] = await Promise.all([
         getUserRoles(),
-        getUsers(defaultFilters),
+        getUsers(initialFilters),
       ]);
       setRoles(roleData);
       setPage(userData);
-      setFilters(defaultFilters);
+      setFilters(initialFilters);
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }
+  }, [customerAccountsOnly]);
 
-  async function loadUsers(nextFilters = filters) {
-    setLoading(true);
+  useEffect(() => {
+    void loadInitialData();
+  }, [loadInitialData]);
+
+  useEffect(() => {
+    const nextDrafts: Record<number, string> = {};
+    users.forEach((user) => {
+      if (user.customerId) {
+        nextDrafts[user.id] = String(Math.round(user.customerBalance ?? 0));
+      }
+    });
+    setBalanceDrafts(nextDrafts);
+  }, [users]);
+
+  const loadUsers = useCallback(async (nextFilters = filters, showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
+    const scopedFilters = customerAccountsOnly
+      ? { ...nextFilters, role: "CUSTOMER" }
+      : nextFilters;
     try {
-      const data = await getUsers(nextFilters);
+      const data = await getUsers(scopedFilters);
       setPage(data);
-      setFilters(nextFilters);
+      setFilters(scopedFilters);
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
-  }
+  }, [customerAccountsOnly, filters]);
+
+  useRealtimeEvents(["PLAY_SESSION_CHANGED", "PAYMENT_CHANGED", "RESERVATION_CHANGED"], () => {
+    void loadUsers(filters, false);
+  });
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void loadUsers(filters, false);
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [filters, loadUsers]);
 
   function updateFilters(nextFilters: Partial<UserFilters>) {
-    setFilters((current) => ({ ...current, ...nextFilters, page: 0 }));
+    setFilters((current) => ({
+      ...current,
+      ...nextFilters,
+      role: customerAccountsOnly ? "CUSTOMER" : (nextFilters.role ?? current.role),
+      page: 0,
+    }));
   }
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -342,7 +389,7 @@ export function UserManagementPage() {
 
   function openCreateForm() {
     setEditingId(null);
-    setFormValues(emptyForm);
+    setFormValues({ ...emptyForm, role: customerAccountsOnly ? "CUSTOMER" : emptyForm.role });
     setFormVisible(true);
     setError(null);
     setSuccess(null);
@@ -372,7 +419,9 @@ export function UserManagementPage() {
         setSuccess("Đã tạo tài khoản.");
       } else {
         await updateUser(editingId, formValues);
-        await updateUserRole(editingId, formValues.role);
+        if (canManageRoles) {
+          await updateUserRole(editingId, formValues.role);
+        }
         setSuccess("Đã cập nhật tài khoản.");
       }
       closeForm();
@@ -415,6 +464,9 @@ export function UserManagementPage() {
   }
 
   async function changeRole(user: User, role: UserRole) {
+    if (!canManageRoles) {
+      return;
+    }
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -433,6 +485,31 @@ export function UserManagementPage() {
     await loadUsers({ ...filters, page: nextPage });
   }
 
+  function updateBalanceDraft(userId: number, value: string) {
+    setBalanceDrafts((current) => ({ ...current, [userId]: value }));
+  }
+
+  async function saveBalance(user: User) {
+    const nextBalance = Number(balanceDrafts[user.id]);
+    if (!Number.isFinite(nextBalance) || nextBalance < 0) {
+      setError("Số dư khách hàng không hợp lệ.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await updateUserBalance(user.id, nextBalance);
+      setSuccess("Đã cập nhật số dư khách hàng.");
+      await loadUsers(filters);
+    } catch (saveError) {
+      setError(getErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <section className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -440,7 +517,9 @@ export function UserManagementPage() {
           <p className="text-sm font-medium text-primary">User Management</p>
           <h2 className="text-2xl font-semibold">Quản lý tài khoản</h2>
           <p className="text-sm text-muted-foreground">
-            Tạo và quản trị tài khoản khách hàng, nhân viên, quản trị viên.
+            {customerAccountsOnly
+              ? "Nhân viên chỉ được xem và thao tác với tài khoản khách hàng."
+              : "Tạo và quản trị tài khoản khách hàng, nhân viên, quản trị viên."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -511,6 +590,7 @@ export function UserManagementPage() {
       <div className="overflow-hidden rounded-lg border bg-background/75 shadow-sm backdrop-blur">
         {formVisible ? (
           <UserForm
+            canManageRoles={canManageRoles}
             mode={editingId == null ? "create" : "edit"}
             roles={roles}
             saving={saving}
@@ -536,6 +616,7 @@ export function UserManagementPage() {
           </label>
           <select
             className="h-10 rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary"
+            disabled={customerAccountsOnly}
             value={filters.role}
             onChange={(event) => updateFilters({ role: event.target.value })}
           >
@@ -572,6 +653,7 @@ export function UserManagementPage() {
                 <th className="px-4 py-3 font-medium">Liên hệ</th>
                 <th className="px-4 py-3 font-medium">Vai trò</th>
                 <th className="px-4 py-3 font-medium">Hồ sơ</th>
+                <th className="px-4 py-3 font-medium">Số dư</th>
                 <th className="px-4 py-3 font-medium">Trạng thái</th>
                 <th className="px-4 py-3 font-medium">Ngày tạo</th>
                 <th className="px-4 py-3 text-right font-medium">Thao tác</th>
@@ -580,13 +662,13 @@ export function UserManagementPage() {
             <tbody className="divide-y">
               {loading ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={8}>
                     Đang tải dữ liệu
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={8}>
                     Chưa có tài khoản phù hợp.
                   </td>
                 </tr>
@@ -608,20 +690,22 @@ export function UserManagementPage() {
                     <td className="px-4 py-3">
                       <div className="grid gap-2">
                         <RoleBadge role={user.role} />
-                        <select
-                          className="h-8 rounded-md border bg-background px-2 text-xs outline-none transition focus:border-primary"
-                          disabled={saving}
-                          value={user.role}
-                          onChange={(event) =>
-                            void changeRole(user, event.target.value as UserRole)
-                          }
-                        >
-                          {roles.map((role) => (
-                            <option key={role.id} value={role.name}>
-                              {roleLabels[role.name] ?? role.name}
-                            </option>
-                          ))}
-                        </select>
+                        {canManageRoles ? (
+                          <select
+                            className="h-8 rounded-md border bg-background px-2 text-xs outline-none transition focus:border-primary"
+                            disabled={saving}
+                            value={user.role}
+                            onChange={(event) =>
+                              void changeRole(user, event.target.value as UserRole)
+                            }
+                          >
+                            {roles.map((role) => (
+                              <option key={role.id} value={role.name}>
+                                {roleLabels[role.name] ?? role.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -634,6 +718,32 @@ export function UserManagementPage() {
                         <div>NV #{user.employeeId}</div>
                       ) : (
                         <div>Admin</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {user.customerId ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            className="h-9 w-32 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary"
+                            min={0}
+                            step={1000}
+                            type="number"
+                            value={balanceDrafts[user.id] ?? ""}
+                            onChange={(event) =>
+                              updateBalanceDraft(user.id, event.target.value)
+                            }
+                          />
+                          <button
+                            className="inline-flex h-9 items-center rounded-md border px-3 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                            disabled={saving}
+                            type="button"
+                            onClick={() => void saveBalance(user)}
+                          >
+                            Lưu
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Không áp dụng</span>
                       )}
                     </td>
                     <td className="px-4 py-3">

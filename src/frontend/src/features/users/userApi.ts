@@ -80,6 +80,13 @@ export async function updateUserRole(id: number, role: UserRole) {
   return response.data;
 }
 
+export async function updateUserBalance(id: number, balance: number) {
+  const response = await httpClient.patch<User>(`/users/${id}/balance`, {
+    balance,
+  });
+  return response.data;
+}
+
 export async function lockUser(id: number) {
   await httpClient.delete(`/users/${id}`);
 }

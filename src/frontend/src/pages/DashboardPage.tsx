@@ -47,9 +47,8 @@ const invoiceStatusLabels: Record<string, string> = {
 
 const methodLabels: Record<string, string> = {
   CASH: "Tiền mặt",
-  CARD: "Thẻ",
   BANK_TRANSFER: "Chuyển khoản",
-  E_WALLET: "Ví điện tử",
+  ACCOUNT_BALANCE: "Trừ số dư tài khoản",
 };
 
 function getErrorMessage(error: unknown) {

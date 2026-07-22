@@ -29,11 +29,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -43,6 +45,9 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class ReservationServiceImpl implements ReservationService {
+
+    private static final int DEFAULT_HOLD_MINUTES = 30;
+    private static final int CUSTOMER_CANCEL_WINDOW_MINUTES = 5;
 
     private static final Set<ReservationStatus> ACTIVE_STATUSES = Set.of(
             ReservationStatus.PENDING,
@@ -91,13 +96,15 @@ public class ReservationServiceImpl implements ReservationService {
     public ReservationResponse createReservation(CurrentUser currentUser, ReservationCreateRequest request) {
         Customer customer = resolveCustomer(currentUser, request.customerId());
         Set<Machine> machines = getReservableMachines(request.machineIds());
-        validateBalanceForOneHourReservation(customer, machines);
+        BigDecimal deposit = calculateReservationDeposit(machines);
+        chargeReservationDeposit(customer, deposit);
+        LocalDateTime reservedAt = LocalDateTime.now();
 
         Reservation reservation = new Reservation();
         reservation.setCustomer(customer);
-        reservation.setReservedAt(LocalDateTime.now());
-        reservation.setExpiresAt(request.expiresAt());
-        reservation.setDeposit(request.deposit() == null ? BigDecimal.ZERO : request.deposit());
+        reservation.setReservedAt(reservedAt);
+        reservation.setExpiresAt(reservedAt.plusMinutes(DEFAULT_HOLD_MINUTES));
+        reservation.setDeposit(deposit);
         reservation.setStatus(ReservationStatus.CONFIRMED);
         reservation.setMachines(machines);
 
@@ -122,6 +129,18 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         Reservation reservation = getReservationById(id);
+        if (isTerminalStatus(reservation.getStatus())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Reservation is already closed");
+        }
+
+        if (request.status() == ReservationStatus.CANCELLED) {
+            if (isOverdue(reservation, LocalDateTime.now())) {
+                expireReservation(reservation);
+                return reservationMapper.toResponse(reservation);
+            }
+            refundOutstandingDeposit(reservation);
+        }
+
         reservation.setStatus(request.status());
         syncMachineStatus(reservation);
         Reservation savedReservation = reservationRepository.save(reservation);
@@ -140,12 +159,33 @@ public class ReservationServiceImpl implements ReservationService {
             throw new BusinessException(HttpStatus.CONFLICT, "Reservation is already closed");
         }
 
+        if (isOverdue(reservation, LocalDateTime.now())) {
+            expireReservation(reservation);
+            return new MessageResponse("Reservation has expired");
+        }
+
+        if (!canManageReservations(currentUser)) {
+            validateCustomerCancelWindow(reservation);
+        }
+
+        refundOutstandingDeposit(reservation);
         reservation.setStatus(ReservationStatus.CANCELLED);
         syncMachineStatus(reservation);
         reservationRepository.save(reservation);
         publishReservationChanged(reservation, ReservationStatus.CANCELLED.name());
         reservation.getMachines().forEach(machine -> publishMachineChanged(machine, machine.getStatus().name()));
         return new MessageResponse("Reservation has been cancelled");
+    }
+
+    @Scheduled(
+            initialDelayString = "${app.reservation.expiration-check-initial-delay-ms:30000}",
+            fixedDelayString = "${app.reservation.expiration-check-fixed-delay-ms:30000}"
+    )
+    @Transactional
+    public void expireOverdueReservations() {
+        LocalDateTime now = LocalDateTime.now();
+        reservationRepository.findByStatusAndExpiresAtLessThanEqual(ReservationStatus.CONFIRMED, now)
+                .forEach(this::expireReservation);
     }
 
     @Override
@@ -243,18 +283,44 @@ public class ReservationServiceImpl implements ReservationService {
         return new LinkedHashSet<>(foundMachines);
     }
 
-    private void validateBalanceForOneHourReservation(Customer customer, Set<Machine> machines) {
-        BigDecimal requiredBalance = machines.stream()
-                .map(machine -> machine.getHourlyPrice() == null ? BigDecimal.ZERO : machine.getHourlyPrice())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private BigDecimal calculateReservationDeposit(Set<Machine> machines) {
+        return machines.stream()
+                .map(machine -> normalizeAmount(machine.getHourlyPrice()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+    }
 
-        BigDecimal currentBalance = customer.getBalance() == null ? BigDecimal.ZERO : customer.getBalance();
-        if (currentBalance.compareTo(requiredBalance) < 0) {
+    private void chargeReservationDeposit(Customer customer, BigDecimal deposit) {
+        BigDecimal currentBalance = normalizeAmount(customer.getBalance());
+        if (currentBalance.compareTo(deposit) < 0) {
             throw new BusinessException(
                     HttpStatus.CONFLICT,
-                    "Customer balance must cover at least one hour for selected machines"
+                    "Customer balance must cover one-hour deposit for selected machines"
             );
         }
+
+        customer.setBalance(currentBalance.subtract(deposit).setScale(2, RoundingMode.HALF_UP));
+        customerRepository.save(customer);
+    }
+
+    private void refundOutstandingDeposit(Reservation reservation) {
+        BigDecimal outstandingDeposit = normalizeAmount(reservation.getDeposit());
+        if (outstandingDeposit.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        Customer customer = reservation.getCustomer();
+        customer.setBalance(
+                normalizeAmount(customer.getBalance())
+                        .add(outstandingDeposit)
+                        .setScale(2, RoundingMode.HALF_UP)
+        );
+        reservation.setDeposit(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        customerRepository.save(customer);
+    }
+
+    private BigDecimal normalizeAmount(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount;
     }
 
     private void validateCanAccess(CurrentUser currentUser, Reservation reservation) {
@@ -266,6 +332,32 @@ public class ReservationServiceImpl implements ReservationService {
         if (!reservation.getCustomer().getId().equals(currentCustomer.getId())) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Reservation does not belong to current customer");
         }
+    }
+
+    private void validateCustomerCancelWindow(Reservation reservation) {
+        if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Customer can only cancel confirmed reservation");
+        }
+
+        if (reservation.getReservedAt().plusMinutes(CUSTOMER_CANCEL_WINDOW_MINUTES).isBefore(LocalDateTime.now())) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "Customer can only cancel within 5 minutes after reservation confirmation"
+            );
+        }
+    }
+
+    private boolean isOverdue(Reservation reservation, LocalDateTime now) {
+        return reservation.getStatus() == ReservationStatus.CONFIRMED
+                && !reservation.getExpiresAt().isAfter(now);
+    }
+
+    private void expireReservation(Reservation reservation) {
+        reservation.setStatus(ReservationStatus.EXPIRED);
+        syncMachineStatus(reservation);
+        reservationRepository.save(reservation);
+        publishReservationChanged(reservation, ReservationStatus.EXPIRED.name());
+        reservation.getMachines().forEach(machine -> publishMachineChanged(machine, machine.getStatus().name()));
     }
 
     private void syncMachineStatus(Reservation reservation) {

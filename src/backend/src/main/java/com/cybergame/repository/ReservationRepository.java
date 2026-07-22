@@ -30,6 +30,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Intege
     );
 
     @EntityGraph(attributePaths = {"customer", "customer.user", "machines", "machines.area"})
+    List<Reservation> findByStatusAndExpiresAtLessThanEqual(ReservationStatus status, LocalDateTime now);
+
+    @EntityGraph(attributePaths = {"customer", "customer.user", "machines", "machines.area"})
     @Query("select reservation from Reservation reservation where reservation.id = :id")
     Optional<Reservation> findDetailedById(@Param("id") Integer id);
 

@@ -28,6 +28,8 @@ src/frontend/node_modules/
 src/frontend/dist/
 src/frontend/.vite/
 src/frontend/.eslintcache
+src/frontend/playwright-report/
+src/frontend/test-results/
 
 # Portable local tools
 tools/

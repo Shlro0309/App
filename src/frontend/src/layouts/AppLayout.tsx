@@ -24,13 +24,13 @@ type NavigationItem = {
 
 const navigationItems: NavigationItem[] = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["ADMIN", "EMPLOYEE"] },
-  { label: "Tài khoản", path: "/users", icon: Users, roles: ["ADMIN"] },
+  { label: "Tài khoản", path: "/users", icon: Users, roles: ["ADMIN", "EMPLOYEE"] },
   { label: "Máy trạm", path: "/machines", icon: Monitor, roles: ["ADMIN", "EMPLOYEE"] },
   { label: "Đặt máy", path: "/reservations", icon: CalendarClock },
   { label: "Phiên chơi", path: "/play-sessions", icon: Timer },
   { label: "Dịch vụ", path: "/food-services", icon: Utensils },
   { label: "Thanh toán", path: "/payments", icon: Receipt },
-  { label: "Báo cáo", path: "/reports", icon: BarChart3, roles: ["ADMIN", "EMPLOYEE"] },
+  { label: "Báo cáo", path: "/reports", icon: BarChart3, roles: ["ADMIN"] },
 ];
 
 const roleLabels: Record<UserRole, string> = {

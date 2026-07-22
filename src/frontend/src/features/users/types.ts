@@ -11,6 +11,7 @@ export type User = {
   role: UserRole;
   status: AccountStatus;
   customerId: number | null;
+  customerBalance: number | null;
   employeeId: number | null;
   createdAt: string;
 };

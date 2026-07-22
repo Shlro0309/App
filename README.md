@@ -133,14 +133,14 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 3 | Kết nối SQL Server | Đã hoàn thành |
 | 4 | Spring Security + JWT | Đã hoàn thành |
 | 5 | Authentication | Đã hoàn thành |
-| 6 | User Management | Đã hoàn thành backend, đã bổ sung frontend quản lý tài khoản ở workspace hiện tại |
+| 6 | User Management | Đã hoàn thành backend/frontend, nhân viên được mở module tài khoản nhưng chỉ thao tác tài khoản khách hàng; admin và nhân viên đều chỉnh được số dư khách hàng, màn hình tài khoản tự cập nhật số dư theo realtime và chu kỳ 30 giây |
 | 7 | Machine Management | Đã hoàn thành backend, đã bổ sung frontend quản lý máy ở workspace hiện tại |
-| 8 | Reservation | Đã hoàn thành backend, đã bổ sung frontend quản lý đặt máy ở workspace hiện tại |
-| 9 | Play Session | Đã hoàn thành backend, đã bổ sung frontend quản lý phiên chơi ở workspace hiện tại |
+| 8 | Reservation | Đã hoàn thành backend/frontend; giữ chỗ mặc định 30 phút, đặt cọc 1 giờ, khách chỉ hủy trong 5 phút đầu sau xác nhận, quá hạn tự chuyển `EXPIRED` và không hoàn cọc |
+| 9 | Play Session | Đã hoàn thành backend/frontend; phiên chơi trừ số dư theo thời gian sử dụng và cập nhật realtime cho màn hình vận hành |
 | 10 | Food Service | Đã hoàn thành backend, đã bổ sung frontend quản lý dịch vụ và đơn gọi món ở workspace hiện tại |
 | 11 | Payment | Đã hoàn thành backend, đã bổ sung frontend quản lý thanh toán ở workspace hiện tại |
 | 12 | Dashboard | Đã hoàn thành backend tổng quan, đã bổ sung frontend Dashboard dữ liệu thật ở workspace hiện tại |
-| 13 | Reports | Đã hoàn thành backend báo cáo, đã bổ sung frontend Reports ở workspace hiện tại |
+| 13 | Reports | Đã hoàn thành backend/frontend Reports, hiện chỉ mở cho `ADMIN` |
 | 14 | Frontend | Đã tách portal vận hành cho ADMIN/EMPLOYEE, side window tại quán `/customer` và web đặt máy trước riêng cho khách gồm `/booking/login`, `/booking` |
 | 15 | WebSocket | Đã hoàn thành backend WebSocket/STOMP và frontend realtime client cho các màn hình vận hành/khách hàng |
 | 16 | Testing | Đã có kiểm tra build/lint cơ bản, chưa có test tích hợp/e2e đầy đủ |
@@ -232,6 +232,7 @@ POST   /api/users
 PUT    /api/users/{id}
 PATCH  /api/users/{id}/status
 PATCH  /api/users/{id}/role
+PATCH  /api/users/{id}/balance
 DELETE /api/users/{id}
 GET    /api/users/roles
 ```
@@ -248,13 +249,16 @@ page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
 Frontend User Management hiện có:
 
 - Tạo route `/users` trong React Router.
-- Bật điều hướng thật cho mục Tài khoản trên sidebar/header.
+- Bật điều hướng thật cho mục Tài khoản trên sidebar/header cho cả `ADMIN` và `EMPLOYEE`.
 - Tạo trang quản lý tài khoản với thống kê nhanh tổng tài khoản, khách hàng, nhân viên và tài khoản đã khóa.
 - Tạo bộ lọc theo từ khóa, role và trạng thái tài khoản.
 - Tạo bảng danh sách tài khoản có phân trang.
 - Tạo form thêm tài khoản mới cho `ADMIN`, `EMPLOYEE` hoặc `CUSTOMER`.
 - Cho phép sửa thông tin liên hệ, đổi role, khóa tài khoản và mở khóa tài khoản trực tiếp từ bảng.
-- Kết nối frontend với các API `/api/users` và `/api/users/roles`.
+- Cho phép `ADMIN` và `EMPLOYEE` điều chỉnh số dư tài khoản khách hàng trực tiếp trong bảng bằng `PATCH /api/users/{id}/balance`.
+- Màn hình tài khoản của `ADMIN` và `EMPLOYEE` tự reload số dư khách hàng khi có realtime event liên quan đến phiên chơi, thanh toán hoặc đặt máy; đồng thời có polling nền 30 giây để số dư vẫn cập nhật khi websocket bị trễ.
+- Giới hạn nghiệp vụ cho `EMPLOYEE`: chỉ thấy tài khoản `CUSTOMER`, chỉ tạo/sửa/khóa/mở khóa tài khoản khách hàng, không được đổi role và danh sách role chỉ trả về `CUSTOMER`.
+- Kết nối frontend với các API `/api/users`, `/api/users/roles` và `/api/users/{id}/balance`.
 
 Lưu ý: file SQL gốc hiện chỉ chứa schema. Workspace hiện có thêm script `config/scripts/seed-dashboard-sample-data.sql` để tạo dữ liệu demo cho Dashboard và tài khoản mẫu khi cần chạy thử local.
 
@@ -320,9 +324,12 @@ Frontend Machine Management hiện có:
 - Mở rộng `ReservationRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
 - Tạo `ReservationSpecifications` để lọc theo từ khóa, khách hàng và trạng thái đặt máy.
 - Khi tạo đặt máy, hệ thống chỉ nhận máy đang `AVAILABLE`, kiểm tra trùng đặt máy active và chuyển máy sang `RESERVED`.
-- Khách chỉ đặt máy thành công khi số dư hiện tại đủ ít nhất 1 giờ chơi của toàn bộ máy đã chọn; hệ thống chỉ kiểm tra điều kiện số dư, không trừ tiền ở bước đặt máy.
-- Đơn đặt máy tạo thành công chuyển thẳng sang `CONFIRMED` và có mã đặt trước dạng `RSV-000123` được suy ra từ mã đơn hiện có, không bổ sung cột database.
+- Khách chỉ đặt máy thành công khi số dư hiện tại đủ tiền cọc mặc định; tiền cọc được tính bằng 1 giờ chơi của toàn bộ máy đã chọn và được trừ ngay khỏi `khachHang.soDu` khi tạo đơn.
+- Đơn đặt máy tạo thành công chuyển thẳng sang `CONFIRMED`, có thời gian giữ chỗ mặc định 30 phút kể từ lúc xác nhận và có mã đặt trước dạng `RSV-000123` được suy ra từ mã đơn hiện có, không bổ sung cột database.
 - Bổ sung API `GET /api/reservations/station-active?machineId=...` để màn hình máy trạm đọc reservation `CONFIRMED` còn hạn của máy đó trước khi khách đăng nhập.
+- Khách hàng chỉ được hủy đặt máy khi đơn đang `CONFIRMED` và chưa vượt quá 5 phút kể từ thời điểm xác nhận/tạo đơn; hủy hợp lệ chuyển trạng thái sang `CANCELLED`, hoàn lại tiền cọc còn treo vào số dư và giải phóng máy về `AVAILABLE`.
+- Backend có job nền kiểm tra reservation quá hạn theo chu kỳ mặc định 30 giây; đơn `CONFIRMED` quá `expiresAt` tự chuyển sang `EXPIRED`, giải phóng máy về `AVAILABLE` và không hoàn lại tiền cọc.
+- Nếu API hủy được gọi sau khi đơn đã quá hạn nhưng job nền chưa kịp chạy, backend vẫn chuyển đơn sang `EXPIRED` và không hoàn cọc để tránh sai nghiệp vụ.
 - Khi hủy hoặc đóng đặt máy bằng trạng thái kết thúc, hệ thống giải phóng máy về `AVAILABLE` nếu máy còn đang `RESERVED`.
 - Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/tạo/hủy theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được cập nhật trạng thái đặt máy.
 - Khách hàng chỉ được xem, tạo và hủy đặt máy của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
@@ -359,8 +366,9 @@ Frontend Reservation hiện có:
 - Tạo bộ lọc theo từ khóa, khách hàng và trạng thái.
 - Tạo bảng danh sách đặt máy có phân trang.
 - Tạo form đặt máy, chọn một hoặc nhiều máy còn trống từ API `/api/reservations/available-machines`.
-- Trang đặt máy của khách hiển thị số dư, tổng tiền cần có cho 1 giờ của máy đã chọn và chặn gửi form khi số dư không đủ.
+- Trang đặt máy của khách hiển thị số dư, thời gian giữ chỗ mặc định 30 phút, tiền cọc mặc định bằng 1 giờ chơi của máy đã chọn và chặn gửi form khi số dư không đủ.
 - Lịch đặt của khách hiển thị mã đặt trước `RSV-000123` và bộ đếm ngược cho đơn `CONFIRMED`.
+- Lịch đặt của khách có nút hủy cho đơn `CONFIRMED` còn trong cửa sổ 5 phút; sau khi hủy sẽ tải lại lịch đặt và refresh số dư để hiển thị tiền cọc đã hoàn.
 - Cho phép cập nhật trạng thái đặt máy trực tiếp từ bảng.
 - Cho phép hủy đặt máy khi đặt máy chưa ở trạng thái kết thúc.
 - Kết nối frontend với các API `/api/reservations`, `/api/reservations/statuses` và `/api/reservations/available-machines`.
@@ -377,11 +385,12 @@ Frontend Reservation hiện có:
 - Mở rộng `PlaySessionRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
 - Tạo `PlaySessionSpecifications` để lọc theo từ khóa, khách hàng, máy và trạng thái phiên chơi.
 - Cho phép bắt đầu phiên trực tiếp trên máy đang `AVAILABLE`; khi bắt đầu phiên, máy chuyển sang `PLAYING`.
-- Cho phép check-in từ reservation đã `CONFIRMED`; hệ thống kiểm tra reservation chưa hết hạn, máy thuộc reservation và máy đang `RESERVED`.
-- Khi khách nhập đúng mã đặt trước tại máy trạm và đăng nhập đúng tài khoản sở hữu đơn, backend tạo phiên chơi từ reservation, chuyển máy từ `RESERVED` sang `PLAYING`; nếu toàn bộ máy trong đơn đã được check-in thì reservation chuyển sang `COMPLETED`.
-- Chặn bắt đầu phiên trực tiếp hoặc check-in từ reservation nếu số dư khách hàng không lớn hơn `0`; khách phải nạp tiền trước khi vào phiên chơi.
+- Cho phép check-in từ reservation đã `CONFIRMED`; hệ thống kiểm tra reservation chưa hết hạn 30 phút, máy thuộc reservation và máy đang `RESERVED`.
+- Khi khách nhập đúng mã đặt trước tại máy trạm và đăng nhập đúng tài khoản sở hữu đơn, backend hoàn lại phần tiền cọc tương ứng máy check-in vào số dư khách hàng, tạo phiên chơi từ reservation, chuyển máy từ `RESERVED` sang `PLAYING`; nếu toàn bộ máy trong đơn đã được check-in thì reservation chuyển sang `COMPLETED`.
+- Chặn bắt đầu phiên trực tiếp nếu số dư khách hàng không lớn hơn `0`; với check-in đặt trước, tiền cọc được hoàn trước rồi hệ thống mới kiểm tra số dư để bắt đầu phiên.
 - Khi kết thúc phiên, hệ thống tính `tongTienGio` theo số phút sử dụng và `giaTheoGio`, chuyển phiên sang `COMPLETED`, đồng thời giải phóng máy về `AVAILABLE`.
-- Khi tiền giờ đã dùng chạm số dư khách hàng, backend tự kết thúc phiên theo lịch kiểm tra định kỳ, trừ số dư về tối thiểu `0`, chuyển khách về `OFFLINE` và giải phóng máy về `AVAILABLE`.
+- Backend tính tiền giờ theo thời gian sử dụng và trừ phần chênh lệch phát sinh vào số dư khách hàng theo lịch kiểm tra định kỳ mặc định 30 giây; `totalHourlyAmount` của phiên chơi được dùng như số tiền đã tính lũy kế để tránh trừ lặp.
+- Khi số dư khách hàng về `0` hoặc không đủ trả phần tiền phát sinh tiếp theo, backend tự kết thúc phiên, chuyển khách về `OFFLINE`, giải phóng máy về `AVAILABLE` và phát realtime event để frontend vận hành/khách hàng cập nhật.
 - Khi hủy phiên, hệ thống chuyển phiên sang `CANCELLED`, đặt tiền giờ bằng `0` và giải phóng máy về `AVAILABLE`.
 - Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/bắt đầu/kết thúc theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được hủy phiên.
 - Khách hàng chỉ được xem và thao tác phiên chơi của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
@@ -512,7 +521,9 @@ Frontend Food Service hiện có:
 - Tự tính số tiền hóa đơn từ `tongTienGio` của Play Session và `tongTien` của Food Service, không nhập tay tổng tiền từ frontend.
 - Chặn tạo trùng hóa đơn active cho cùng đơn gọi món hoặc phiên chơi độc lập để tránh ghi nhận thanh toán lặp.
 - Cho phép xác nhận thanh toán hóa đơn `PENDING`, cập nhật phương thức thanh toán và thời gian giao dịch.
-- Bổ sung API nạp tiền ví khách hàng `POST /api/payments/top-up`, dùng tài khoản `CUSTOMER` đang đăng nhập, cộng vào `khachHang.soDu` và ghi lịch sử hóa đơn `WALLET_TOP_UP` trạng thái `PAID`.
+- Thanh toán dịch vụ hỗ trợ 3 phương thức: `CASH`, `BANK_TRANSFER` và `ACCOUNT_BALANCE`; nếu dùng `ACCOUNT_BALANCE` thì backend kiểm tra số dư và trừ tiền từ `khachHang.soDu` khi hóa đơn chuyển sang `PAID`.
+- Bổ sung API nạp tiền ví khách hàng `POST /api/payments/top-up`, dùng tài khoản `CUSTOMER` đang đăng nhập để tạo yêu cầu nạp tiền `WALLET_TOP_UP` trạng thái `PENDING`, chưa cộng ngay vào `khachHang.soDu`.
+- Nạp tiền vào tài khoản chỉ hỗ trợ 2 phương thức: `CASH` và `BANK_TRANSFER`; nhân viên/admin đối chiếu tiền mặt hoặc giao dịch chuyển khoản bên ngoài rồi xác nhận thủ công, lúc đó backend mới cộng số tiền nạp vào số dư khách hàng.
 - Cho phép cập nhật trạng thái hóa đơn theo luồng hợp lệ: hóa đơn đã thanh toán không được hủy trực tiếp, chỉ có thể chuyển sang hoàn tiền khi cần.
 - Phân quyền theo role: `ADMIN`, `EMPLOYEE`, `CUSTOMER` được xem/tạo/thanh toán/hủy theo phạm vi hợp lệ; chỉ `ADMIN` và `EMPLOYEE` được cập nhật trạng thái quản trị.
 - Khách hàng chỉ được thao tác hóa đơn của chính mình; `ADMIN` và `EMPLOYEE` được thao tác theo khách hàng cụ thể.
@@ -552,7 +563,7 @@ Frontend Payment hiện có:
 - Tạo bảng danh sách hóa đơn có phân trang.
 - Tạo form checkout để lập hóa đơn từ phiên chơi, đơn gọi món hoặc kết hợp cả hai.
 - Hiển thị nhãn giao dịch nạp tiền `WALLET_TOP_UP` là `Nạp tiền` ở Payment, Dashboard, Report và lịch sử thanh toán khách hàng.
-- Cho phép xác nhận thanh toán, hủy hóa đơn đang chờ và cập nhật trạng thái hóa đơn trực tiếp từ bảng.
+- Cho phép xác nhận thanh toán, hủy hóa đơn đang chờ và cập nhật trạng thái hóa đơn trực tiếp từ bảng; các yêu cầu nạp tiền chuyển khoản từ máy trạm xuất hiện như hóa đơn `WALLET_TOP_UP` chờ nhân viên/admin xác nhận.
 - Kết nối frontend với các API `/api/payments`, `/api/payments/statuses` và `/api/payments/methods`.
 
 ### Giai đoạn 10: Dashboard
@@ -597,7 +608,7 @@ Frontend Dashboard hiện có:
 - Tạo DTO riêng cho Reports gồm tổng quan kỳ báo cáo, doanh thu theo ngày, doanh thu theo nguồn giao dịch, doanh thu theo phương thức thanh toán, top máy sử dụng, top dịch vụ bán ra và top khách hàng.
 - Mở rộng các repository hiện có bằng query đọc dữ liệu tổng hợp: `InvoiceRepository`, `PlaySessionRepository` và `OrderDetailRepository`.
 - Reports chỉ đọc dữ liệu, không ghi dữ liệu và không thay đổi schema database.
-- API Reports yêu cầu role `ADMIN` hoặc `EMPLOYEE` vì đây là nhóm báo cáo vận hành/quản trị.
+- API Reports yêu cầu role `ADMIN`; nhân viên không còn quyền xem báo cáo.
 - Hỗ trợ lọc báo cáo theo `fromDate` và `toDate`, mặc định lấy 30 ngày gần nhất khi frontend mở màn hình.
 - Giới hạn khoảng báo cáo tối đa 366 ngày cho mỗi request để tránh truy vấn quá rộng.
 - Tính tổng doanh thu từ hóa đơn `PAID`, tách doanh thu giờ chơi và doanh thu dịch vụ dựa trên liên kết hóa đơn với phiên chơi/đơn gọi món.
@@ -620,7 +631,7 @@ toDate: ngày kết thúc kỳ báo cáo theo ISO date, ví dụ 2026-07-21
 Frontend Reports hiện có:
 
 - Tạo route `/reports` trong React Router.
-- Bật điều hướng thật cho mục Báo cáo trên sidebar/header.
+- Bật điều hướng thật cho mục Báo cáo trên sidebar/header nhưng chỉ hiển thị với `ADMIN`.
 - Tạo API client `/api/reports/overview` và kiểu dữ liệu riêng trong `features/reports`.
 - Tạo bộ lọc thời gian theo ngày bắt đầu và ngày kết thúc.
 - Hiển thị các thẻ số liệu nhanh cho tổng doanh thu, doanh thu giờ chơi, doanh thu dịch vụ, số hóa đơn, số phiên hoàn tất, số đơn hoàn tất, thời lượng chơi và trung bình hóa đơn.
@@ -647,16 +658,19 @@ Frontend Reports hiện có:
 - Cập nhật route `/` bằng `HomePage`: `ADMIN` và `EMPLOYEE` vào Dashboard vận hành, `CUSTOMER` được chuyển sang side window `/customer`.
 - Tách rõ portal vận hành nội bộ khỏi trải nghiệm khách hàng: layout sidebar vận hành chỉ dành cho `ADMIN` và `EMPLOYEE`.
 - Tạo route `/customer/login` cho màn hình đăng nhập máy trạm riêng của khách tại quán, tách khỏi màn hình `/login` của vận hành.
-- Màn hình `/customer/login` chỉ cho tài khoản `CUSTOMER` vào phiên chơi; nếu số dư bằng `0` thì giữ khách ở màn hình này, thông báo cần nạp thêm tiền và cho nạp tiền trực tiếp trước khi vào side window.
-- Màn hình `/customer/login` nhận `machineId` qua URL, ví dụ `/customer/login?machineId=2`, sau đó ghi nhớ máy trạm trong `localStorage`; nếu máy đó có reservation `CONFIRMED` còn hạn thì hiển thị countdown và yêu cầu nhập mã đặt trước trước khi đăng nhập vào phiên chơi.
-- Nếu máy trạm không có reservation còn hạn thì `/customer/login` vẫn hiển thị giao diện đăng nhập phiên chơi bình thường.
+- Màn hình `/customer/login` chỉ cho tài khoản `CUSTOMER` vào phiên chơi; nếu số dư bằng `0` thì giữ khách ở màn hình này, thông báo cần nạp thêm tiền và cho gửi yêu cầu nạp tiền bằng `CASH` hoặc `BANK_TRANSFER` trước khi vào side window.
+- Khi khách chọn nạp tiền bằng chuyển khoản tại `/customer/login`, giao diện hiển thị QR, số tài khoản ngân hàng chủ cyber game, số tiền cần nạp và nội dung chuyển khoản; yêu cầu được gửi về màn hình thanh toán để nhân viên/admin đối chiếu hệ thống bên ngoài rồi xác nhận thủ công.
+- Màn hình `/customer/login` nhận `machineId` qua URL, ví dụ `/customer/login?machineId=2`, sau đó ghi nhớ máy trạm trong `localStorage`; đây là trang đăng nhập máy trạm bình thường và sẽ gọi API bắt đầu phiên trực tiếp theo máy đó.
+- Tạo route `/customer/reservation-login` cho máy trạm đang có reservation `CONFIRMED` còn hạn; trang này hiển thị countdown giữ chỗ, yêu cầu nhập mã đặt trước và check-in reservation trước khi vào side window.
+- Nếu khách mở `/customer/login` trên máy đang được đặt trước, frontend tự chuyển sang `/customer/reservation-login?machineId=...`; nếu mở trang đặt trước trên máy không còn reservation, frontend chuyển về `/customer/login?machineId=...`.
 - Tạo route `/customer` cho side window khách hàng tại máy trong quán, có thể thu gọn/mở lại, hiển thị tài khoản, máy đang dùng, số dư, thời gian còn lại, thời gian đã dùng, đơn gọi món, lịch sử thanh toán và các thao tác nhanh.
 - Side window tự giảm số dư hiển thị theo thời gian chơi, cảnh báo khi còn khoảng `30`, `10`, `5` phút và tự gọi kết thúc phiên rồi quay về màn hình `/customer/login` khi số dư về `0`.
 - Tạo route `/booking/login` cho màn hình đăng nhập riêng của khách đặt máy từ laptop/điện thoại cá nhân; route này chỉ cho tài khoản `CUSTOMER` đi vào web booking.
-- Tạo route `/booking` cho trang đặt máy trước riêng của khách hàng, dùng tài khoản `CUSTOMER` để xem máy còn trống, chọn nhiều máy, nhập thời gian giữ chỗ và tạo reservation.
+- Tạo route `/booking` cho trang đặt máy trước riêng của khách hàng, dùng tài khoản `CUSTOMER` để xem máy còn trống, chọn nhiều máy và tạo reservation với thời gian giữ chỗ/cọc mặc định.
 - Giữ `/prebook` làm alias chuyển hướng về `/booking` để tránh hỏng đường dẫn cũ trong quá trình test.
 - Cập nhật sidebar/header vận hành để hiển thị người dùng hiện tại, role hiện tại và nút đăng xuất.
-- Lọc menu theo role: `ADMIN` thấy toàn bộ mục quản trị, `EMPLOYEE` thấy các mục vận hành/báo cáo phù hợp, `CUSTOMER` không đi vào portal vận hành.
+- Lọc menu theo role: `ADMIN` thấy toàn bộ mục quản trị, `EMPLOYEE` thấy các mục vận hành phù hợp nhưng không thấy Báo cáo, `CUSTOMER` không đi vào portal vận hành.
+- Với module Tài khoản trong portal vận hành, `EMPLOYEE` chỉ thấy và thao tác tài khoản khách hàng; `ADMIN` vẫn thấy đầy đủ tài khoản admin, nhân viên và khách hàng.
 - Bổ sung field `balance` vào DTO `/api/auth/me` và response đăng nhập để customer UI đọc số dư từ bảng `khachHang`, không thay đổi schema database.
 
 ### Điều chỉnh cấu trúc thư mục
@@ -682,6 +696,7 @@ Frontend Reports hiện có:
 - `RealtimeEventPublisher` phát sự kiện lên topic `/topic/realtime`; nếu nghiệp vụ đang chạy trong transaction thì sự kiện chỉ được gửi sau khi transaction commit thành công.
 - Bổ sung phát sự kiện realtime từ các service hiện có khi máy đổi trạng thái, đơn đặt máy thay đổi, phiên chơi bắt đầu/kết thúc/hủy, đơn dịch vụ thay đổi và thanh toán/nạp tiền cập nhật.
 - Khi đặt máy, check-in đặt trước hoặc kết thúc phiên chơi làm đổi trạng thái máy, backend phát cả sự kiện của nghiệp vụ chính và sự kiện máy để các màn hình liên quan tự cập nhật.
+- Khi job phiên chơi trừ số dư theo chu kỳ, backend phát `PLAY_SESSION_CHANGED` với action `BALANCE_UPDATED`; màn hình tài khoản admin/nhân viên dùng event này cùng polling 30 giây để tải lại số dư khách hàng.
 - Bổ sung realtime client ở frontend trong `features/realtime`, dùng `@stomp/stompjs`, tự suy ra URL WebSocket từ `VITE_API_BASE_URL`, tự reconnect và gửi Bearer token hiện có khi người dùng đã đăng nhập.
 - Tạo hook `useRealtimeEvents` để các màn hình chỉ cần khai báo nhóm event muốn nghe, không phải tự quản lý kết nối STOMP.
 - Dashboard, quản lý máy, đặt máy, phiên chơi, dịch vụ, thanh toán, báo cáo, web đặt máy của khách và side window khách hàng đã subscribe các event liên quan để tự reload dữ liệu khi backend phát thay đổi.
@@ -689,7 +704,20 @@ Frontend Reports hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có và test Spring Boot cơ bản chạy đạt. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store. Nghiệp vụ đặt máy hiện đã có điều kiện số dư đủ 1 giờ, mã đặt trước, countdown ở trang booking và countdown/check-in bằng mã tại màn hình login máy trạm. Giai đoạn WebSocket đã được kiểm tra bằng lint/build frontend và build/test backend.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có và test Spring Boot cơ bản chạy đạt. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer/reservation-login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store. Nghiệp vụ đặt máy hiện đã có giữ chỗ mặc định 30 phút, trừ cọc mặc định bằng 1 giờ chơi khi đặt, hoàn cọc khi check-in đúng hạn, countdown ở trang booking và trang login đặt trước riêng cho máy trạm. Giai đoạn WebSocket đã được kiểm tra bằng lint/build frontend và build/test backend. Frontend hiện đã được bổ sung Playwright để chuẩn bị kiểm thử E2E, gồm smoke test cho các màn hình đăng nhập vận hành, đăng nhập đặt máy khách hàng, đăng nhập máy trạm thường và đăng nhập máy trạm đặt trước.
+
+Lần cập nhật nghiệp vụ realtime số dư, hủy đặt trong 5 phút và tự hết hạn giữ chỗ đã được kiểm tra lại bằng frontend lint, frontend build và backend clean test.
+
+Các lệnh Playwright hiện có:
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e:headed
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e:ui
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e:report
+```
+
+Ghi chú: Playwright report nằm ở `src/frontend/playwright-report/` và test artifact nằm ở `src/frontend/test-results/`; hai thư mục này chỉ dùng local và không commit lên Git.
 
 ## Giai đoạn tiếp theo
 

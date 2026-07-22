@@ -65,9 +65,8 @@ const statusClassNames: Record<PaymentStatus, string> = {
 
 const methodLabels: Record<string, string> = {
   CASH: "Tiền mặt",
-  CARD: "Thẻ",
   BANK_TRANSFER: "Chuyển khoản",
-  E_WALLET: "Ví điện tử",
+  ACCOUNT_BALANCE: "Trừ số dư tài khoản",
 };
 
 function getErrorMessage(error: unknown) {
@@ -239,9 +238,8 @@ export function PaymentManagementPage() {
   ]);
   const [methods, setMethods] = useState<string[]>([
     "CASH",
-    "CARD",
     "BANK_TRANSFER",
-    "E_WALLET",
+    "ACCOUNT_BALANCE",
   ]);
   const [filters, setFilters] = useState<PaymentFilters>(defaultFilters);
   const [page, setPage] = useState<PageResponse<Payment> | null>(null);

@@ -5,6 +5,7 @@ import type { Payment } from "@/features/payments/types";
 import { getPlaySessions } from "@/features/play-sessions/playSessionApi";
 import type { PlaySession } from "@/features/play-sessions/types";
 import {
+  cancelReservation,
   createReservation,
   getAvailableReservationMachines,
   getReservations,
@@ -103,6 +104,10 @@ export async function createCustomerReservation(values: {
     deposit: values.deposit,
     machineIds: values.machineIds,
   });
+}
+
+export async function cancelCustomerReservation(id: number) {
+  await cancelReservation(id);
 }
 
 export type CustomerPanelData = {

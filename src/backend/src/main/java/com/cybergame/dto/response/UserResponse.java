@@ -1,5 +1,6 @@
 package com.cybergame.dto.response;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record UserResponse(
@@ -11,6 +12,7 @@ public record UserResponse(
         String role,
         String status,
         Integer customerId,
+        BigDecimal customerBalance,
         Integer employeeId,
         LocalDateTime createdAt
 ) {

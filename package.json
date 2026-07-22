@@ -9,6 +9,10 @@
     "frontend:install": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 install",
     "frontend:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 dev",
     "frontend:build": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 build",
-    "frontend:lint": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 lint"
+    "frontend:lint": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 lint",
+    "frontend:e2e": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e",
+    "frontend:e2e:headed": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e:headed",
+    "frontend:e2e:ui": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e:ui",
+    "frontend:e2e:report": "powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e:report"
   }
 }

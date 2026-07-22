@@ -50,7 +50,11 @@ public class PaymentServiceImpl implements PaymentService {
     private static final String FOOD_ORDER_TRANSACTION = "FOOD_ORDER";
     private static final String COMBINED_TRANSACTION = "COMBINED";
     private static final String WALLET_TOP_UP_TRANSACTION = "WALLET_TOP_UP";
-    private static final List<String> PAYMENT_METHODS = List.of("CASH", "CARD", "BANK_TRANSFER", "E_WALLET");
+    private static final String CASH_METHOD = "CASH";
+    private static final String BANK_TRANSFER_METHOD = "BANK_TRANSFER";
+    private static final String ACCOUNT_BALANCE_METHOD = "ACCOUNT_BALANCE";
+    private static final List<String> TOP_UP_PAYMENT_METHODS = List.of(CASH_METHOD, BANK_TRANSFER_METHOD);
+    private static final List<String> PAYMENT_METHODS = List.of(CASH_METHOD, BANK_TRANSFER_METHOD, ACCOUNT_BALANCE_METHOD);
 
     private final InvoiceRepository invoiceRepository;
     private final CustomerRepository customerRepository;
@@ -129,7 +133,7 @@ public class PaymentServiceImpl implements PaymentService {
         invoice.setOrder(order);
         invoice.setTransactionType(resolveTransactionType(playSession, order));
         invoice.setAmount(amount);
-        invoice.setPaymentMethod(toNullableText(request.paymentMethod()));
+        invoice.setPaymentMethod(resolveServicePaymentMethod(null, request.paymentMethod()));
         invoice.setStatus(InvoiceStatus.PENDING);
         invoice.setTransactionAt(LocalDateTime.now());
 
@@ -147,20 +151,17 @@ public class PaymentServiceImpl implements PaymentService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Top-up amount must be greater than 0");
         }
 
-        customer.setBalance(normalizeAmount(customer.getBalance()).add(amount));
-        customerRepository.save(customer);
-
         Invoice invoice = new Invoice();
         invoice.setCustomer(customer);
         invoice.setEmployee(null);
         invoice.setTransactionType(WALLET_TOP_UP_TRANSACTION);
         invoice.setAmount(amount);
-        invoice.setPaymentMethod(resolvePaymentMethod(null, request.paymentMethod()));
-        invoice.setStatus(InvoiceStatus.PAID);
+        invoice.setPaymentMethod(resolveTopUpPaymentMethod(request.paymentMethod()));
+        invoice.setStatus(InvoiceStatus.PENDING);
         invoice.setTransactionAt(LocalDateTime.now());
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
-        publishPaymentChanged(savedInvoice, WALLET_TOP_UP_TRANSACTION);
+        publishPaymentChanged(savedInvoice, "TOP_UP_REQUESTED");
         return paymentMapper.toResponse(savedInvoice);
     }
 
@@ -174,9 +175,12 @@ public class PaymentServiceImpl implements PaymentService {
             throw new BusinessException(HttpStatus.CONFLICT, "Only pending invoice can be paid");
         }
 
-        invoice.setPaymentMethod(resolvePaymentMethod(invoice.getPaymentMethod(), request.paymentMethod()));
+        String paymentMethod = resolvePaymentMethodForInvoice(invoice, request.paymentMethod());
+        applyPaidPaymentEffects(currentUser, invoice, paymentMethod);
+        invoice.setPaymentMethod(paymentMethod);
         invoice.setStatus(InvoiceStatus.PAID);
         invoice.setTransactionAt(LocalDateTime.now());
+        resolveCurrentEmployee(currentUser).ifPresent(invoice::setEmployee);
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
         publishPaymentChanged(savedInvoice, InvoiceStatus.PAID.name());
@@ -204,13 +208,21 @@ public class PaymentServiceImpl implements PaymentService {
             throw new BusinessException(HttpStatus.CONFLICT, "Paid invoice must be refunded instead of cancelled");
         }
 
-        invoice.setStatus(nextStatus);
-        if (request.paymentMethod() != null && !request.paymentMethod().isBlank()) {
-            invoice.setPaymentMethod(request.paymentMethod().trim());
+        String paymentMethod = invoice.getPaymentMethod();
+        if (nextStatus == InvoiceStatus.PAID) {
+            paymentMethod = resolvePaymentMethodForInvoice(invoice, request.paymentMethod());
+            if (currentStatus != InvoiceStatus.PAID) {
+                applyPaidPaymentEffects(currentUser, invoice, paymentMethod);
+            }
+            invoice.setPaymentMethod(paymentMethod);
+        } else if (request.paymentMethod() != null && !request.paymentMethod().isBlank()) {
+            invoice.setPaymentMethod(resolvePaymentMethodForInvoice(invoice, request.paymentMethod()));
         }
+        invoice.setStatus(nextStatus);
         if (nextStatus == InvoiceStatus.PAID || nextStatus == InvoiceStatus.REFUNDED) {
             invoice.setTransactionAt(LocalDateTime.now());
         }
+        resolveCurrentEmployee(currentUser).ifPresent(invoice::setEmployee);
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
         publishPaymentChanged(savedInvoice, savedInvoice.getStatus().name());
@@ -330,15 +342,75 @@ public class PaymentServiceImpl implements PaymentService {
         return FOOD_ORDER_TRANSACTION;
     }
 
-    private String resolvePaymentMethod(String currentPaymentMethod, String requestPaymentMethod) {
+    private String resolvePaymentMethodForInvoice(Invoice invoice, String requestPaymentMethod) {
+        if (WALLET_TOP_UP_TRANSACTION.equals(invoice.getTransactionType())) {
+            String topUpMethod = toNullableText(requestPaymentMethod);
+            if (topUpMethod == null) {
+                topUpMethod = invoice.getPaymentMethod();
+            }
+            return resolveTopUpPaymentMethod(topUpMethod);
+        }
+        return resolveServicePaymentMethod(invoice.getPaymentMethod(), requestPaymentMethod);
+    }
+
+    private String resolveServicePaymentMethod(String currentPaymentMethod, String requestPaymentMethod) {
         String nextPaymentMethod = toNullableText(requestPaymentMethod);
         if (nextPaymentMethod != null) {
+            validatePaymentMethod(nextPaymentMethod, PAYMENT_METHODS, "Payment method is not supported for service payment");
             return nextPaymentMethod;
         }
         if (currentPaymentMethod != null && !currentPaymentMethod.isBlank()) {
+            validatePaymentMethod(currentPaymentMethod, PAYMENT_METHODS, "Payment method is not supported for service payment");
             return currentPaymentMethod;
         }
         return PAYMENT_METHODS.get(0);
+    }
+
+    private String resolveTopUpPaymentMethod(String requestPaymentMethod) {
+        String paymentMethod = toNullableText(requestPaymentMethod);
+        if (paymentMethod == null) {
+            paymentMethod = TOP_UP_PAYMENT_METHODS.get(0);
+        }
+        validatePaymentMethod(paymentMethod, TOP_UP_PAYMENT_METHODS, "Top-up only supports cash or bank transfer");
+        return paymentMethod;
+    }
+
+    private void validatePaymentMethod(String paymentMethod, List<String> supportedMethods, String message) {
+        if (!supportedMethods.contains(paymentMethod)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, message);
+        }
+    }
+
+    private void applyPaidPaymentEffects(CurrentUser currentUser, Invoice invoice, String paymentMethod) {
+        if (WALLET_TOP_UP_TRANSACTION.equals(invoice.getTransactionType())) {
+            validateCanManagePayments(currentUser);
+            creditCustomerBalance(invoice.getCustomer(), invoice.getAmount());
+            return;
+        }
+
+        if (ACCOUNT_BALANCE_METHOD.equals(paymentMethod)) {
+            debitCustomerBalance(invoice.getCustomer(), invoice.getAmount());
+            return;
+        }
+
+        if (!canManagePayments(currentUser)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin or employee can confirm external payment");
+        }
+    }
+
+    private void creditCustomerBalance(Customer customer, BigDecimal amount) {
+        customer.setBalance(normalizeAmount(customer.getBalance()).add(normalizeAmount(amount)));
+        customerRepository.save(customer);
+    }
+
+    private void debitCustomerBalance(Customer customer, BigDecimal amount) {
+        BigDecimal currentBalance = normalizeAmount(customer.getBalance());
+        BigDecimal normalizedAmount = normalizeAmount(amount);
+        if (currentBalance.compareTo(normalizedAmount) < 0) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Customer balance is not enough to pay this invoice");
+        }
+        customer.setBalance(currentBalance.subtract(normalizedAmount));
+        customerRepository.save(customer);
     }
 
     private void validateCanAccess(CurrentUser currentUser, Invoice invoice) {

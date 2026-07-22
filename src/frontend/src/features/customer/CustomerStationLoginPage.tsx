@@ -15,20 +15,30 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import { topUpCustomerBalance } from "@/features/payments/paymentApi";
 import type { CustomerTopUpValues } from "@/features/payments/types";
-import { startPlaySessionFromReservation } from "@/features/play-sessions/playSessionApi";
+import {
+  startPlaySession,
+  startPlaySessionFromReservation,
+} from "@/features/play-sessions/playSessionApi";
 import { getStationActiveReservation } from "@/features/reservations/reservationApi";
 import type { StationReservation } from "@/features/reservations/types";
+import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import { useAuthStore } from "@/stores/authStore";
 import type { ApiError } from "@/types/api";
 import type { LoginValues } from "@/features/auth/types";
 
 const STATION_MACHINE_ID_KEY = "cybergame_station_machine_id";
 const TOP_UP_AMOUNTS = ["20000", "50000", "100000"];
+const BANK_ACCOUNT = {
+  bankCode: import.meta.env.VITE_CYBERGAME_BANK_CODE ?? "970436",
+  bankName: import.meta.env.VITE_CYBERGAME_BANK_NAME ?? "Vietcombank",
+  accountNumber:
+    import.meta.env.VITE_CYBERGAME_BANK_ACCOUNT_NUMBER ?? "0123456789",
+  accountName:
+    import.meta.env.VITE_CYBERGAME_BANK_ACCOUNT_NAME ?? "CYBER GAME OWNER",
+};
 const PAYMENT_METHODS = [
   { value: "CASH", label: "Tiền mặt" },
-  { value: "CARD", label: "Thẻ" },
   { value: "BANK_TRANSFER", label: "Chuyển khoản" },
-  { value: "E_WALLET", label: "Ví điện tử" },
 ];
 
 function getErrorMessage(error: unknown) {
@@ -106,7 +116,33 @@ function resolveStationMachineId(search: string) {
   return storedMachineId && Number(storedMachineId) > 0 ? Number(storedMachineId) : null;
 }
 
-export function CustomerStationLoginPage() {
+function bankTransferContent(username: string | undefined, amount: number) {
+  const normalizedUser =
+    username?.trim().replace(/\s+/g, "").toUpperCase() || "KHACH";
+  return `NAPTIEN ${normalizedUser} ${Math.floor(amount)}`;
+}
+
+function bankTransferQrUrl(amount: number, username: string | undefined) {
+  if (!BANK_ACCOUNT.bankCode || !BANK_ACCOUNT.accountNumber || amount <= 0) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    amount: String(Math.floor(amount)),
+    addInfo: bankTransferContent(username, amount),
+    accountName: BANK_ACCOUNT.accountName,
+  });
+
+  return `https://img.vietqr.io/image/${BANK_ACCOUNT.bankCode}-${BANK_ACCOUNT.accountNumber}-compact2.png?${params.toString()}`;
+}
+
+type CustomerStationLoginSurfaceProps = {
+  reservationMode: boolean;
+};
+
+function CustomerStationLoginSurface({
+  reservationMode,
+}: CustomerStationLoginSurfaceProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const login = useAuthStore((state) => state.login);
@@ -138,17 +174,20 @@ export function CustomerStationLoginPage() {
 
   const balance = user?.balance ?? 0;
   const mustTopUp = user?.role === "CUSTOMER" && balance <= 0;
-  const requiresReservationCode = stationReservation !== null && stationMachineId !== null;
+  const requiresReservationCode =
+    reservationMode && stationReservation !== null && stationMachineId !== null;
   const topUpAmount = useMemo(
     () => Number(topUpValues.amount.replace(/[^\d.]/g, "")) || 0,
     [topUpValues.amount]
   );
+  const transferContent = bankTransferContent(user?.username, topUpAmount);
+  const transferQrUrl = bankTransferQrUrl(topUpAmount, user?.username);
 
-  useEffect(() => {
-    if (user?.role === "CUSTOMER" && balance > 0 && !requiresReservationCode) {
-      navigate("/customer", { replace: true });
+  useRealtimeEvents(["PAYMENT_CHANGED"], () => {
+    if (user?.role === "CUSTOMER") {
+      void refreshCurrentUser();
     }
-  }, [balance, navigate, requiresReservationCode, user?.role]);
+  });
 
   useEffect(() => {
     const nextMachineId = resolveStationMachineId(location.search);
@@ -173,10 +212,25 @@ export function CustomerStationLoginPage() {
         const reservation = await getStationActiveReservation(machineId);
         if (!cancelled) {
           setStationReservation(reservation);
+          if (reservation && !reservationMode) {
+            navigate(`/customer/reservation-login?machineId=${machineId}`, {
+              replace: true,
+            });
+          }
+          if (!reservation && reservationMode) {
+            navigate(`/customer/login?machineId=${machineId}`, {
+              replace: true,
+            });
+          }
         }
       } catch {
         if (!cancelled) {
           setStationReservation(null);
+          if (reservationMode) {
+            navigate(`/customer/login?machineId=${machineId}`, {
+              replace: true,
+            });
+          }
         }
       }
     }
@@ -187,7 +241,7 @@ export function CustomerStationLoginPage() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [stationMachineId]);
+  }, [navigate, reservationMode, stationMachineId]);
 
   function updateField(field: keyof LoginValues, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -213,12 +267,24 @@ export function CustomerStationLoginPage() {
         return;
       }
 
-      if ((loggedInUser.balance ?? 0) <= 0) {
+      if (!reservationMode && (loggedInUser.balance ?? 0) <= 0) {
         setMessage("Số dư của bạn đã hết. Vui lòng nạp thêm tiền trước khi vào phiên chơi.");
         return;
       }
 
-      if (stationReservation && stationMachineId) {
+      if (!stationMachineId) {
+        await logout();
+        setError("Không xác định được máy trạm. Vui lòng mở đường dẫn có machineId.");
+        return;
+      }
+
+      if (reservationMode) {
+        if (!stationReservation) {
+          await logout();
+          setError("Máy trạm này không có đơn đặt trước còn hạn.");
+          return;
+        }
+
         if (
           normalizeReservationCode(reservationCode) !==
           normalizeReservationCode(stationReservation.reservationCode)
@@ -232,8 +298,14 @@ export function CustomerStationLoginPage() {
           reservationId: String(stationReservation.reservationId),
           machineIds: String(stationMachineId),
         });
+      } else {
+        await startPlaySession({
+          customerId: "",
+          machineId: String(stationMachineId),
+        });
       }
 
+      await refreshCurrentUser();
       navigate("/customer", { replace: true });
     } catch (loginError) {
       if (loggedIn) {
@@ -257,16 +329,13 @@ export function CustomerStationLoginPage() {
     setMessage(null);
 
     try {
-      await topUpCustomerBalance({
+      const payment = await topUpCustomerBalance({
         amount: String(topUpAmount),
         paymentMethod: topUpValues.paymentMethod,
       });
-      await refreshCurrentUser();
-      if (requiresReservationCode) {
-        setMessage("Đã nạp tiền. Vui lòng nhập mã đặt trước để vào máy.");
-      } else {
-        navigate("/customer", { replace: true });
-      }
+      setMessage(
+        `Đã gửi yêu cầu nạp tiền #${payment.id}. Vui lòng chờ nhân viên/admin xác nhận, sau đó hệ thống sẽ tự cập nhật số dư.`
+      );
     } catch (topUpError) {
       setError(getErrorMessage(topUpError));
     } finally {
@@ -322,7 +391,9 @@ export function CustomerStationLoginPage() {
           <div className="max-w-xl">
             <p className="text-sm font-medium text-primary">Phiên chơi tại quán</p>
             <h2 className="mt-2 text-4xl font-semibold leading-tight">
-              Đăng nhập để mở side window phiên chơi
+              {reservationMode
+                ? "Check-in máy đã đặt trước"
+                : "Đăng nhập để bắt đầu phiên chơi"}
             </h2>
             <p className="mt-4 text-base leading-7 text-muted-foreground">
               Tài khoản hết số dư sẽ được giữ ở màn hình này để nạp tiền trước khi
@@ -407,13 +478,47 @@ export function CustomerStationLoginPage() {
               </select>
             </label>
 
+            {topUpValues.paymentMethod === "BANK_TRANSFER" ? (
+              <div className="grid gap-3 rounded-md border border-primary/30 bg-primary/10 p-3 text-sm">
+                <div className="grid gap-1">
+                  <span className="text-xs uppercase text-muted-foreground">
+                    Tài khoản nhận chuyển khoản
+                  </span>
+                  <strong>{BANK_ACCOUNT.accountName}</strong>
+                  <span>{BANK_ACCOUNT.bankName}</span>
+                  <span className="font-mono text-base">
+                    {BANK_ACCOUNT.accountNumber}
+                  </span>
+                </div>
+                {transferQrUrl ? (
+                  <img
+                    alt="QR chuyển khoản nạp tiền"
+                    className="mx-auto aspect-square w-44 rounded-md bg-white p-2"
+                    src={transferQrUrl}
+                  />
+                ) : null}
+                <div className="grid gap-1 rounded-md border bg-background/70 p-3">
+                  <span>Số tiền: {formatCurrency(topUpAmount)}</span>
+                  <span>
+                    Nội dung:{" "}
+                    <strong className="font-mono">{transferContent}</strong>
+                  </span>
+                </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Sau khi chuyển khoản, yêu cầu này sẽ ở trạng thái chờ.
+                  Nhân viên/admin đối chiếu giao dịch bên ngoài rồi xác nhận
+                  thủ công trong màn hình thanh toán.
+                </p>
+              </div>
+            ) : null}
+
             <button
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
               disabled={topUpSubmitting || topUpAmount < 1000}
               type="submit"
             >
               <CreditCard className="size-4" />
-              {topUpSubmitting ? "Đang nạp" : "Nạp tiền và vào phiên chơi"}
+              {topUpSubmitting ? "Đang gửi" : "Gửi yêu cầu nạp tiền"}
             </button>
 
             <button
@@ -442,7 +547,7 @@ export function CustomerStationLoginPage() {
             <div>
               <p className="text-sm font-medium text-primary">Khách hàng</p>
               <h2 className="mt-1 text-2xl font-semibold">
-                {requiresReservationCode ? "Check-in đặt máy" : "Đăng nhập phiên chơi"}
+                {reservationMode ? "Check-in đặt máy" : "Đăng nhập phiên chơi"}
               </h2>
             </div>
 
@@ -540,4 +645,12 @@ export function CustomerStationLoginPage() {
       </section>
     </main>
   );
+}
+
+export function CustomerStationLoginPage() {
+  return <CustomerStationLoginSurface reservationMode={false} />;
+}
+
+export function CustomerReservedStationLoginPage() {
+  return <CustomerStationLoginSurface reservationMode />;
 }

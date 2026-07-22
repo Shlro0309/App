@@ -4,7 +4,10 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { CustomerBookingLoginPage } from "@/features/customer/CustomerBookingLoginPage";
 import { CustomerPrebookPage } from "@/features/customer/CustomerPrebookPage";
 import { CustomerSideWindowPage } from "@/features/customer/CustomerSideWindowPage";
-import { CustomerStationLoginPage } from "@/features/customer/CustomerStationLoginPage";
+import {
+  CustomerReservedStationLoginPage,
+  CustomerStationLoginPage,
+} from "@/features/customer/CustomerStationLoginPage";
 import { AppLayout } from "@/layouts/AppLayout";
 import { FoodServiceManagementPage } from "@/features/food-service/FoodServiceManagementPage";
 import { MachineManagementPage } from "@/features/machines/MachineManagementPage";
@@ -37,6 +40,10 @@ export const router = createBrowserRouter([
     element: <CustomerStationLoginPage />,
   },
   {
+    path: "/customer/reservation-login",
+    element: <CustomerReservedStationLoginPage />,
+  },
+  {
     path: "/",
     element: (
       <RequireAuth>
@@ -61,7 +68,7 @@ export const router = createBrowserRouter([
       {
         path: "users",
         element: (
-          <RequireRole allowedRoles={["ADMIN"]}>
+          <RequireRole allowedRoles={["ADMIN", "EMPLOYEE"]}>
             <UserManagementPage />
           </RequireRole>
         ),
@@ -101,7 +108,7 @@ export const router = createBrowserRouter([
       {
         path: "reports",
         element: (
-          <RequireRole allowedRoles={["ADMIN", "EMPLOYEE"]}>
+          <RequireRole allowedRoles={["ADMIN"]}>
             <ReportPage />
           </RequireRole>
         ),

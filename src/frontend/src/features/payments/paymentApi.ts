@@ -84,7 +84,7 @@ export async function updatePaymentStatus(
 ) {
   const response = await httpClient.patch<Payment>(`/payments/${id}/status`, {
     status,
-    paymentMethod: optionalText(paymentMethod),
+    paymentMethod: status === "PAID" ? optionalText(paymentMethod) : undefined,
   });
   return response.data;
 }
