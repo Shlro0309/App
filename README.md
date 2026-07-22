@@ -134,7 +134,7 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 4 | Spring Security + JWT | Đã hoàn thành |
 | 5 | Authentication | Đã hoàn thành |
 | 6 | User Management | Đã hoàn thành backend/frontend, nhân viên được mở module tài khoản nhưng chỉ thao tác tài khoản khách hàng; admin và nhân viên đều chỉnh được số dư khách hàng, màn hình tài khoản tự cập nhật số dư theo realtime và chu kỳ 30 giây |
-| 7 | Machine Management | Đã hoàn thành backend, đã bổ sung frontend quản lý máy ở workspace hiện tại |
+| 7 | Machine Management | Đã hoàn thành backend/frontend; quản lý máy theo khu vực, hiển thị sơ đồ máy dạng grid, hỗ trợ thêm/sửa/xóa khu vực và không xóa máy khi xóa khu |
 | 8 | Reservation | Đã hoàn thành backend/frontend; giữ chỗ mặc định 30 phút, đặt cọc 1 giờ, khách chỉ hủy trong 5 phút đầu sau xác nhận, quá hạn tự chuyển `EXPIRED` và không hoàn cọc |
 | 9 | Play Session | Đã hoàn thành backend/frontend; phiên chơi trừ số dư theo thời gian sử dụng và cập nhật realtime cho màn hình vận hành |
 | 10 | Food Service | Đã hoàn thành backend, đã bổ sung frontend quản lý dịch vụ và đơn gọi món ở workspace hiện tại |
@@ -269,14 +269,16 @@ Lưu ý: file SQL gốc hiện chỉ chứa schema. Workspace hiện có thêm s
 - Tạo module quản lý máy theo mô hình `Controller -> Service -> Repository`.
 - Tạo `MachineManagementController` cho nhóm API `/api/machines`.
 - Tạo `MachineManagementService` và `MachineManagementServiceImpl` để xử lý nghiệp vụ quản lý máy.
-- Tạo DTO riêng cho tạo máy, cập nhật máy, cập nhật trạng thái và response máy.
+- Tạo DTO riêng cho tạo máy, cập nhật máy, cập nhật trạng thái, tạo/cập nhật khu vực và response máy/khu vực.
 - Tạo `MachineMapper` bằng MapStruct để chuyển Entity sang DTO, không trả Entity trực tiếp ra API.
 - Mở rộng `MachineRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
 - Tạo `MachineSpecifications` để lọc theo từ khóa, khu vực và trạng thái máy.
 - API thêm, sửa, đổi trạng thái và khóa máy yêu cầu role `ADMIN` bằng `@PreAuthorize("hasRole('ADMIN')")`.
 - API xóa máy được xử lý theo hướng chuyển trạng thái sang `OFFLINE` thay vì xóa vật lý để giữ an toàn dữ liệu lịch sử.
-- Bổ sung API danh sách khu vực và danh sách trạng thái máy để frontend dùng cho bộ lọc/form.
-- Không bổ sung bảng mới và không thay đổi cấu trúc database.
+- Bổ sung API quản lý khu vực máy dựa trên bảng `khuVuc` hiện có; không tạo thêm bảng `khuVucMay` vì `mayTram.maKhuVuc` đã là quan hệ khu vực của máy.
+- `GET /api/machines/areas` trả danh sách khu vực kèm số lượng máy để frontend hiển thị tổng máy theo từng khu.
+- Cho phép `ADMIN` tạo khu vực, đổi tên/cập nhật mô tả khu vực và xóa khu vực.
+- Khi xóa khu vực, backend không xóa máy; toàn bộ máy trong khu bị xóa được chuyển sang khu mặc định `Chưa phân khu`, sau đó khu vực cũ mới bị xóa.
 
 Các API Machine Management hiện có:
 
@@ -288,6 +290,9 @@ PUT    /api/machines/{id}
 PATCH  /api/machines/{id}/status
 DELETE /api/machines/{id}
 GET    /api/machines/areas
+POST   /api/machines/areas
+PUT    /api/machines/areas/{id}
+DELETE /api/machines/areas/{id}
 GET    /api/machines/statuses
 ```
 
@@ -303,13 +308,14 @@ page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
 Frontend Machine Management hiện có:
 
 - Tạo route `/machines` trong React Router.
-- Tạo trang quản lý máy với thống kê nhanh theo trạng thái.
-- Tạo bộ lọc theo từ khóa, khu vực và trạng thái.
-- Tạo bảng danh sách máy có phân trang.
+- Tạo trang quản lý máy với thống kê nhanh theo trạng thái và sidebar khu vực kèm số lượng máy.
+- Tạo bộ lọc theo từ khóa và trạng thái; chọn khu vực ở sidebar để xem sơ đồ máy của khu đó.
+- Thay bảng danh sách máy bằng sơ đồ máy dạng grid theo khu vực; mỗi thẻ máy hiển thị tên máy, trạng thái, giá giờ và cấu hình CPU/GPU/RAM/FPS/độ phân giải.
 - Tạo form thêm máy và sửa thông tin máy.
-- Cho phép đổi trạng thái máy trực tiếp từ bảng.
+- Cho phép đổi trạng thái máy trực tiếp từ thẻ máy.
 - Cho phép chuyển máy sang `OFFLINE` theo API xóa mềm của backend.
-- Kết nối frontend với các API `/api/machines`, `/api/machines/areas` và `/api/machines/statuses`.
+- Cho phép `ADMIN` thêm khu vực, đổi tên khu vực và xóa khu vực ngay trong màn hình máy trạm.
+- Kết nối frontend với các API `/api/machines`, `/api/machines/areas`, `/api/machines/areas/{id}` và `/api/machines/statuses`.
 - Sidebar đã có điều hướng thật cho Dashboard và Máy trạm; các module chưa làm được để trạng thái chưa hoạt động để tránh vào route lỗi.
 
 ### Giai đoạn 6: Reservation
@@ -692,10 +698,11 @@ Frontend Reports hiện có:
 - Cấu hình WebSocket/STOMP trong backend tại endpoint `/api/ws`, dùng simple broker `/topic`, application prefix `/app` và user prefix `/user`.
 - Mở quyền truy cập handshake WebSocket trong Spring Security cho `/ws/**`, còn các API nghiệp vụ vẫn giữ cơ chế JWT/role hiện có.
 - Tạo event realtime dùng chung gồm `RealtimeEvent`, `RealtimeEventType` và `RealtimeEventPublisher`.
-- Chuẩn hóa các loại sự kiện realtime chính: `MACHINE_STATUS_CHANGED`, `RESERVATION_CHANGED`, `PLAY_SESSION_CHANGED`, `FOOD_ORDER_CHANGED` và `PAYMENT_CHANGED`.
+- Chuẩn hóa các loại sự kiện realtime chính: `MACHINE_STATUS_CHANGED`, `MACHINE_AREA_CHANGED`, `RESERVATION_CHANGED`, `PLAY_SESSION_CHANGED`, `FOOD_ORDER_CHANGED` và `PAYMENT_CHANGED`.
 - `RealtimeEventPublisher` phát sự kiện lên topic `/topic/realtime`; nếu nghiệp vụ đang chạy trong transaction thì sự kiện chỉ được gửi sau khi transaction commit thành công.
 - Bổ sung phát sự kiện realtime từ các service hiện có khi máy đổi trạng thái, đơn đặt máy thay đổi, phiên chơi bắt đầu/kết thúc/hủy, đơn dịch vụ thay đổi và thanh toán/nạp tiền cập nhật.
 - Khi đặt máy, check-in đặt trước hoặc kết thúc phiên chơi làm đổi trạng thái máy, backend phát cả sự kiện của nghiệp vụ chính và sự kiện máy để các màn hình liên quan tự cập nhật.
+- Khi thêm/sửa/xóa khu vực máy, backend phát `MACHINE_AREA_CHANGED` để màn hình quản lý máy tải lại danh sách khu vực và sơ đồ máy.
 - Khi job phiên chơi trừ số dư theo chu kỳ, backend phát `PLAY_SESSION_CHANGED` với action `BALANCE_UPDATED`; màn hình tài khoản admin/nhân viên dùng event này cùng polling 30 giây để tải lại số dư khách hàng.
 - Bổ sung realtime client ở frontend trong `features/realtime`, dùng `@stomp/stompjs`, tự suy ra URL WebSocket từ `VITE_API_BASE_URL`, tự reconnect và gửi Bearer token hiện có khi người dùng đã đăng nhập.
 - Tạo hook `useRealtimeEvents` để các màn hình chỉ cần khai báo nhóm event muốn nghe, không phải tự quản lý kết nối STOMP.
@@ -707,6 +714,8 @@ Frontend Reports hiện có:
 Backend đã build thành công, Hibernate validate được schema SQL Server hiện có và test Spring Boot cơ bản chạy đạt. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer/reservation-login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store. Nghiệp vụ đặt máy hiện đã có giữ chỗ mặc định 30 phút, trừ cọc mặc định bằng 1 giờ chơi khi đặt, hoàn cọc khi check-in đúng hạn, countdown ở trang booking và trang login đặt trước riêng cho máy trạm. Giai đoạn WebSocket đã được kiểm tra bằng lint/build frontend và build/test backend. Frontend hiện đã được bổ sung Playwright để chuẩn bị kiểm thử E2E, gồm smoke test cho các màn hình đăng nhập vận hành, đăng nhập đặt máy khách hàng, đăng nhập máy trạm thường và đăng nhập máy trạm đặt trước.
 
 Lần cập nhật nghiệp vụ realtime số dư, hủy đặt trong 5 phút và tự hết hạn giữ chỗ đã được kiểm tra lại bằng frontend lint, frontend build và backend clean test.
+
+Lần cập nhật quản lý khu vực máy và sơ đồ máy theo khu vực đã được kiểm tra lại bằng frontend lint, frontend build và backend clean test.
 
 Các lệnh Playwright hiện có:
 

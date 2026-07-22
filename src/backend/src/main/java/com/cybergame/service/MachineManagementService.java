@@ -1,6 +1,7 @@
 package com.cybergame.service;
 
 import com.cybergame.dto.request.MachineCreateRequest;
+import com.cybergame.dto.request.AreaUpsertRequest;
 import com.cybergame.dto.request.MachineStatusUpdateRequest;
 import com.cybergame.dto.request.MachineUpdateRequest;
 import com.cybergame.dto.response.AreaResponse;
@@ -27,6 +28,12 @@ public interface MachineManagementService {
     MessageResponse deleteMachine(Integer id);
 
     List<AreaResponse> getAreas();
+
+    AreaResponse createArea(AreaUpsertRequest request);
+
+    AreaResponse updateArea(Integer id, AreaUpsertRequest request);
+
+    MessageResponse deleteArea(Integer id);
 
     List<String> getStatuses();
 }

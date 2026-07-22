@@ -10,6 +10,7 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface MachineMapper {
 
+    @Mapping(target = "machineCount", expression = "java(area.getMachines() == null ? 0L : area.getMachines().size())")
     AreaResponse toAreaResponse(Area area);
 
     @Mapping(target = "areaId", source = "area.id")

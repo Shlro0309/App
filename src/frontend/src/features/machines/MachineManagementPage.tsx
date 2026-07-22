@@ -2,31 +2,37 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AxiosError } from "axios";
 import {
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   CircleAlert,
   Cpu,
   Edit3,
+  Layers3,
+  MapPinned,
   Monitor,
   Plus,
   RefreshCw,
   Search,
   ShieldAlert,
+  Trash2,
   X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
+import { useAuthStore } from "@/stores/authStore";
 import {
   createMachine,
+  createMachineArea,
+  deleteMachineArea,
   getMachineAreas,
   getMachines,
   getMachineStatuses,
   setMachineOffline,
   updateMachine,
+  updateMachineArea,
   updateMachineStatus,
 } from "./machineApi";
 import type {
   Area,
+  AreaFormValues,
   Machine,
   MachineFilters,
   MachineFormValues,
@@ -39,10 +45,10 @@ const defaultFilters: MachineFilters = {
   areaId: "",
   status: "",
   page: 0,
-  size: 10,
+  size: 1000,
 };
 
-const emptyForm: MachineFormValues = {
+const emptyMachineForm: MachineFormValues = {
   name: "",
   areaId: "",
   cpu: "",
@@ -52,6 +58,11 @@ const emptyForm: MachineFormValues = {
   resolution: "",
   hourlyPrice: "0",
   status: "AVAILABLE",
+};
+
+const emptyAreaForm: AreaFormValues = {
+  name: "",
+  description: "",
 };
 
 const statusLabels: Record<MachineStatus, string> = {
@@ -88,7 +99,7 @@ function getErrorMessage(error: unknown) {
   return "Không thể xử lý yêu cầu hiện tại.";
 }
 
-function toFormValues(machine: Machine): MachineFormValues {
+function toMachineFormValues(machine: Machine): MachineFormValues {
   return {
     name: machine.name,
     areaId: String(machine.areaId),
@@ -102,12 +113,29 @@ function toFormValues(machine: Machine): MachineFormValues {
   };
 }
 
+function toAreaFormValues(area: Area): AreaFormValues {
+  return {
+    name: area.name,
+    description: area.description ?? "",
+  };
+}
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatConfig(machine: Machine) {
+  return [
+    machine.cpu ?? "CPU N/A",
+    machine.gpu ?? "GPU N/A",
+    machine.ram == null ? "RAM N/A" : `${machine.ram}GB RAM`,
+    machine.fps == null ? "FPS N/A" : `${machine.fps} FPS`,
+    machine.resolution ?? "N/A",
+  ].join(" | ");
 }
 
 function StatusBadge({ status }: { status: MachineStatus }) {
@@ -117,6 +145,78 @@ function StatusBadge({ status }: { status: MachineStatus }) {
     >
       {statusLabels[status]}
     </span>
+  );
+}
+
+type AreaFormProps = {
+  mode: "create" | "edit";
+  saving: boolean;
+  values: AreaFormValues;
+  onCancel: () => void;
+  onChange: (values: AreaFormValues) => void;
+  onSubmit: () => void;
+};
+
+function AreaForm({
+  mode,
+  saving,
+  values,
+  onCancel,
+  onChange,
+  onSubmit,
+}: AreaFormProps) {
+  function updateField(field: keyof AreaFormValues, value: string) {
+    onChange({ ...values, [field]: value });
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSubmit();
+  }
+
+  return (
+    <form
+      className="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
+      onSubmit={handleSubmit}
+    >
+      <label className="grid gap-2 text-sm">
+        <span className="text-muted-foreground">Tên khu vực</span>
+        <input
+          className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+          maxLength={50}
+          required
+          value={values.name}
+          onChange={(event) => updateField("name", event.target.value)}
+        />
+      </label>
+      <label className="grid gap-2 text-sm">
+        <span className="text-muted-foreground">Mô tả</span>
+        <input
+          className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+          maxLength={255}
+          value={values.description}
+          onChange={(event) => updateField("description", event.target.value)}
+        />
+      </label>
+      <div className="flex items-end gap-2">
+        <button
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+          disabled={saving}
+          type="submit"
+        >
+          <CheckCircle2 className="size-4" />
+          {saving ? "Đang lưu" : mode === "create" ? "Thêm khu" : "Lưu khu"}
+        </button>
+        <button
+          className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          type="button"
+          onClick={onCancel}
+        >
+          <X className="size-4" />
+          Hủy
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -288,7 +388,93 @@ function MachineForm({
   );
 }
 
+type MachineCardProps = {
+  canManageMachines: boolean;
+  machine: Machine;
+  saving: boolean;
+  statuses: MachineStatus[];
+  onEdit: (machine: Machine) => void;
+  onOffline: (machine: Machine) => void;
+  onStatusChange: (machine: Machine, status: MachineStatus) => void;
+};
+
+function MachineCard({
+  canManageMachines,
+  machine,
+  saving,
+  statuses,
+  onEdit,
+  onOffline,
+  onStatusChange,
+}: MachineCardProps) {
+  return (
+    <article className="grid min-h-[220px] gap-4 rounded-md border bg-background p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="grid size-10 shrink-0 place-items-center rounded-md bg-muted">
+            <Monitor className="size-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate font-semibold">{machine.name}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">ID #{machine.id}</p>
+          </div>
+        </div>
+        <StatusBadge status={machine.status} />
+      </div>
+
+      <div className="grid gap-2 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Giá giờ</span>
+          <span className="font-medium">{formatCurrency(machine.hourlyPrice)}</span>
+        </div>
+        <div className="rounded-md border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
+          {formatConfig(machine)}
+        </div>
+      </div>
+
+      {canManageMachines ? (
+        <div className="mt-auto flex items-center justify-between gap-2">
+          <select
+            className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs outline-none transition focus:border-primary disabled:opacity-60"
+            disabled={saving}
+            value={machine.status}
+            onChange={(event) =>
+              onStatusChange(machine, event.target.value as MachineStatus)
+            }
+          >
+            {statuses.map((status) => (
+              <option key={status} value={status}>
+                {statusLabels[status] ?? status}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <button
+              className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              title="Sửa máy"
+              type="button"
+              onClick={() => onEdit(machine)}
+            >
+              <Edit3 className="size-4" />
+            </button>
+            <button
+              className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10"
+              title="Chuyển ngoại tuyến"
+              type="button"
+              onClick={() => onOffline(machine)}
+            >
+              <CircleAlert className="size-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 export function MachineManagementPage() {
+  const currentUser = useAuthStore((state) => state.user);
+  const canManageMachines = currentUser?.role === "ADMIN";
   const [areas, setAreas] = useState<Area[]>([]);
   const [statuses, setStatuses] = useState<MachineStatus[]>([
     "AVAILABLE",
@@ -303,13 +489,18 @@ export function MachineManagementPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [formMode, setFormMode] = useState<"hidden" | "create" | "edit">(
-    "hidden"
-  );
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formValues, setFormValues] = useState<MachineFormValues>(emptyForm);
+  const [machineFormMode, setMachineFormMode] = useState<"hidden" | "create" | "edit">("hidden");
+  const [areaFormMode, setAreaFormMode] = useState<"hidden" | "create" | "edit">("hidden");
+  const [editingMachineId, setEditingMachineId] = useState<number | null>(null);
+  const [editingAreaId, setEditingAreaId] = useState<number | null>(null);
+  const [machineFormValues, setMachineFormValues] = useState<MachineFormValues>(emptyMachineForm);
+  const [areaFormValues, setAreaFormValues] = useState<AreaFormValues>(emptyAreaForm);
 
   const machines = useMemo(() => page?.content ?? [], [page]);
+  const selectedArea = useMemo(
+    () => areas.find((area) => String(area.id) === filters.areaId) ?? null,
+    [areas, filters.areaId]
+  );
   const statusSummary = useMemo(() => {
     const counts = new Map<MachineStatus, number>();
     machines.forEach((machine) => {
@@ -320,6 +511,14 @@ export function MachineManagementPage() {
       count: counts.get(status) ?? 0,
     }));
   }, [machines, statuses]);
+  const machineGroups = useMemo(() => {
+    return areas
+      .map((area) => ({
+        area,
+        machines: machines.filter((machine) => machine.areaId === area.id),
+      }))
+      .filter((group) => filters.areaId || group.machines.length > 0);
+  }, [areas, filters.areaId, machines]);
 
   async function loadReferenceData() {
     const [areaData, statusData] = await Promise.all([
@@ -330,16 +529,40 @@ export function MachineManagementPage() {
     setStatuses(statusData);
   }
 
-  async function loadMachines(nextFilters = filters) {
-    setLoading(true);
+  async function loadMachines(nextFilters = filters, showLoading = true) {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const data = await getMachines(nextFilters);
       setPage(data);
+      setFilters(nextFilters);
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }
+
+  async function reloadWorkspace(nextFilters = filters, showLoading = true) {
+    if (showLoading) {
+      setLoading(true);
+    }
+    setError(null);
+    try {
+      await loadReferenceData();
+      const data = await getMachines(nextFilters);
+      setPage(data);
+      setFilters(nextFilters);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }
 
@@ -348,9 +571,15 @@ export function MachineManagementPage() {
       setLoading(true);
       setError(null);
       try {
-        await loadReferenceData();
-        const data = await getMachines(defaultFilters);
-        setPage(data);
+        const [areaData, statusData, machineData] = await Promise.all([
+          getMachineAreas(),
+          getMachineStatuses(),
+          getMachines(defaultFilters),
+        ]);
+        setAreas(areaData);
+        setStatuses(statusData);
+        setPage(machineData);
+        setFilters(defaultFilters);
       } catch (loadError) {
         setError(getErrorMessage(loadError));
       } finally {
@@ -361,63 +590,133 @@ export function MachineManagementPage() {
     void loadInitialData();
   }, []);
 
-  useRealtimeEvents(["MACHINE_STATUS_CHANGED"], () => {
-    void loadMachines(filters);
+  useRealtimeEvents(["MACHINE_STATUS_CHANGED", "MACHINE_AREA_CHANGED"], () => {
+    void reloadWorkspace(filters, false);
   });
 
   function updateFilters(nextFilters: Partial<MachineFilters>) {
     setFilters((current) => ({
       ...current,
       ...nextFilters,
-      page: nextFilters.page ?? 0,
+      page: 0,
+      size: defaultFilters.size,
     }));
   }
 
   async function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextFilters = { ...filters, page: 0 };
-    setFilters(nextFilters);
+    await loadMachines({ ...filters, page: 0, size: defaultFilters.size });
+  }
+
+  async function selectArea(areaId: string) {
+    const nextFilters = { ...filters, areaId, page: 0, size: defaultFilters.size };
     await loadMachines(nextFilters);
   }
 
-  function openCreateForm() {
-    setEditingId(null);
-    setFormValues({
-      ...emptyForm,
-      areaId: areas[0] ? String(areas[0].id) : "",
+  function openCreateMachineForm() {
+    setEditingMachineId(null);
+    setMachineFormValues({
+      ...emptyMachineForm,
+      areaId: filters.areaId || (areas[0] ? String(areas[0].id) : ""),
     });
-    setFormMode("create");
+    setMachineFormMode("create");
+    setAreaFormMode("hidden");
   }
 
-  function openEditForm(machine: Machine) {
-    setEditingId(machine.id);
-    setFormValues(toFormValues(machine));
-    setFormMode("edit");
+  function openEditMachineForm(machine: Machine) {
+    setEditingMachineId(machine.id);
+    setMachineFormValues(toMachineFormValues(machine));
+    setMachineFormMode("edit");
+    setAreaFormMode("hidden");
   }
 
-  function closeForm() {
-    setEditingId(null);
-    setFormValues(emptyForm);
-    setFormMode("hidden");
+  function closeMachineForm() {
+    setEditingMachineId(null);
+    setMachineFormValues(emptyMachineForm);
+    setMachineFormMode("hidden");
   }
 
-  async function submitForm() {
+  function openCreateAreaForm() {
+    setEditingAreaId(null);
+    setAreaFormValues(emptyAreaForm);
+    setAreaFormMode("create");
+    setMachineFormMode("hidden");
+  }
+
+  function openEditAreaForm(area: Area) {
+    setEditingAreaId(area.id);
+    setAreaFormValues(toAreaFormValues(area));
+    setAreaFormMode("edit");
+    setMachineFormMode("hidden");
+  }
+
+  function closeAreaForm() {
+    setEditingAreaId(null);
+    setAreaFormValues(emptyAreaForm);
+    setAreaFormMode("hidden");
+  }
+
+  async function submitMachineForm() {
     setSaving(true);
     setError(null);
     setSuccess(null);
     try {
-      if (formMode === "create") {
-        await createMachine(formValues);
+      if (machineFormMode === "create") {
+        await createMachine(machineFormValues);
         setSuccess("Đã thêm máy mới.");
       }
-      if (formMode === "edit" && editingId != null) {
-        await updateMachine(editingId, formValues);
+      if (machineFormMode === "edit" && editingMachineId != null) {
+        await updateMachine(editingMachineId, machineFormValues);
         setSuccess("Đã cập nhật máy.");
       }
-      closeForm();
-      await loadMachines(filters);
+      closeMachineForm();
+      await reloadWorkspace(filters);
     } catch (saveError) {
       setError(getErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitAreaForm() {
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      if (areaFormMode === "create") {
+        const area = await createMachineArea(areaFormValues);
+        setSuccess("Đã thêm khu vực mới.");
+        await reloadWorkspace({ ...filters, areaId: String(area.id), page: 0, size: defaultFilters.size });
+      }
+      if (areaFormMode === "edit" && editingAreaId != null) {
+        await updateMachineArea(editingAreaId, areaFormValues);
+        setSuccess("Đã cập nhật khu vực.");
+        await reloadWorkspace(filters);
+      }
+      closeAreaForm();
+    } catch (saveError) {
+      setError(getErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeArea(area: Area) {
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await deleteMachineArea(area.id);
+      const nextFilters = {
+        ...filters,
+        areaId: filters.areaId === String(area.id) ? "" : filters.areaId,
+        page: 0,
+        size: defaultFilters.size,
+      };
+      setSuccess(`Đã xóa khu vực ${area.name}. Máy trong khu đã được chuyển sang Chưa phân khu.`);
+      await reloadWorkspace(nextFilters);
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError));
     } finally {
       setSaving(false);
     }
@@ -430,7 +729,7 @@ export function MachineManagementPage() {
     try {
       await updateMachineStatus(machine.id, status);
       setSuccess(`Đã cập nhật trạng thái ${machine.name}.`);
-      await loadMachines(filters);
+      await reloadWorkspace(filters);
     } catch (statusError) {
       setError(getErrorMessage(statusError));
     } finally {
@@ -445,7 +744,7 @@ export function MachineManagementPage() {
     try {
       await setMachineOffline(machine.id);
       setSuccess(`Đã chuyển ${machine.name} sang ngoại tuyến.`);
-      await loadMachines(filters);
+      await reloadWorkspace(filters);
     } catch (deleteError) {
       setError(getErrorMessage(deleteError));
     } finally {
@@ -453,52 +752,55 @@ export function MachineManagementPage() {
     }
   }
 
-  async function goToPage(pageNumber: number) {
-    const nextFilters = { ...filters, page: pageNumber };
-    setFilters(nextFilters);
-    await loadMachines(nextFilters);
-  }
-
   return (
     <section className="mx-auto grid max-w-7xl gap-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Quản lý máy</p>
-          <h2 className="mt-1 text-2xl font-semibold">Quản lý máy trạm</h2>
+          <h2 className="mt-1 text-2xl font-semibold">Sơ đồ máy trạm theo khu vực</h2>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
             type="button"
-            onClick={() => loadMachines(filters)}
+            onClick={() => void reloadWorkspace(filters)}
           >
-            <RefreshCw className="size-4" />
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             Tải lại
           </button>
-          <button
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90"
-            type="button"
-            onClick={openCreateForm}
-          >
-            <Plus className="size-4" />
-            Thêm máy
-          </button>
+          {canManageMachines ? (
+            <>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                type="button"
+                onClick={openCreateAreaForm}
+              >
+                <MapPinned className="size-4" />
+                Thêm khu vực
+              </button>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+                type="button"
+                onClick={openCreateMachineForm}
+              >
+                <Plus className="size-4" />
+                Thêm máy
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">
-        <div className="rounded-md border bg-background p-4 md:col-span-1">
+        <div className="rounded-md border bg-background p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tổng máy</span>
+            <span className="text-sm text-muted-foreground">Máy đang hiển thị</span>
             <Monitor className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">{page?.totalElements ?? 0}</p>
+          <p className="text-2xl font-semibold">{machines.length}</p>
         </div>
         {statusSummary.map((item) => (
-          <div
-            className="rounded-md border bg-background p-4"
-            key={item.status}
-          >
+          <div className="rounded-md border bg-background p-4" key={item.status}>
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
                 {statusLabels[item.status]}
@@ -512,7 +814,7 @@ export function MachineManagementPage() {
 
       <div className="overflow-hidden rounded-md border bg-background">
         <form
-          className="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[1fr_180px_180px_auto]"
+          className="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_180px_auto]"
           onSubmit={applyFilters}
         >
           <label className="relative">
@@ -521,24 +823,9 @@ export function MachineManagementPage() {
               className="h-10 w-full rounded-md border bg-background pl-10 pr-3 text-sm outline-none transition focus:border-primary"
               placeholder="Tìm tên máy, CPU, GPU, khu vực"
               value={filters.keyword}
-              onChange={(event) =>
-                updateFilters({ keyword: event.target.value })
-              }
+              onChange={(event) => updateFilters({ keyword: event.target.value })}
             />
           </label>
-
-          <select
-            className="h-10 rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary"
-            value={filters.areaId}
-            onChange={(event) => updateFilters({ areaId: event.target.value })}
-          >
-            <option value="">Tất cả khu vực</option>
-            {areas.map((area) => (
-              <option key={area.id} value={area.id}>
-                {area.name}
-              </option>
-            ))}
-          </select>
 
           <select
             className="h-10 rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary"
@@ -562,162 +849,188 @@ export function MachineManagementPage() {
           </button>
         </form>
 
-        {formMode !== "hidden" && (
+        {areaFormMode !== "hidden" ? (
+          <AreaForm
+            mode={areaFormMode}
+            saving={saving}
+            values={areaFormValues}
+            onCancel={closeAreaForm}
+            onChange={setAreaFormValues}
+            onSubmit={submitAreaForm}
+          />
+        ) : null}
+
+        {machineFormMode !== "hidden" ? (
           <MachineForm
             areas={areas}
-            mode={formMode}
+            mode={machineFormMode}
             saving={saving}
             statuses={statuses}
-            values={formValues}
-            onCancel={closeForm}
-            onChange={setFormValues}
-            onSubmit={submitForm}
+            values={machineFormValues}
+            onCancel={closeMachineForm}
+            onChange={setMachineFormValues}
+            onSubmit={submitMachineForm}
           />
-        )}
+        ) : null}
 
-        {error && (
+        {error ? (
           <div className="flex items-center gap-2 border-b border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-red-200">
             <ShieldAlert className="size-4" />
             <span>{error}</span>
           </div>
-        )}
+        ) : null}
 
-        {success && (
+        {success ? (
           <div className="flex items-center gap-2 border-b border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
             <CheckCircle2 className="size-4" />
             <span>{success}</span>
           </div>
-        )}
+        ) : null}
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-sm">
-            <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 font-medium">Máy</th>
-                <th className="px-4 py-3 font-medium">Khu vực</th>
-                <th className="px-4 py-3 font-medium">Cấu hình</th>
-                <th className="px-4 py-3 font-medium">Giá</th>
-                <th className="px-4 py-3 font-medium">Trạng thái</th>
-                <th className="px-4 py-3 font-medium">Cập nhật</th>
-                <th className="px-4 py-3 text-right font-medium">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td
-                    className="px-4 py-10 text-center text-muted-foreground"
-                    colSpan={7}
+        <div className="grid gap-0 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="border-b bg-muted/10 p-4 lg:border-b-0 lg:border-r">
+            <div className="mb-3 flex items-center gap-2">
+              <Layers3 className="size-4 text-primary" />
+              <h3 className="font-semibold">Khu vực</h3>
+            </div>
+            <div className="grid gap-2">
+              <button
+                className={[
+                  "flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition hover:bg-muted",
+                  filters.areaId === "" ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground",
+                ].join(" ")}
+                type="button"
+                onClick={() => void selectArea("")}
+              >
+                <span>Tất cả khu vực</span>
+                <span className="rounded-md border px-2 py-0.5 text-xs">
+                  {areas.reduce((total, area) => total + area.machineCount, 0)}
+                </span>
+              </button>
+
+              {areas.map((area) => (
+                <div className="grid gap-2 rounded-md border bg-background p-2" key={area.id}>
+                  <button
+                    className={[
+                      "flex items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-sm transition hover:bg-muted",
+                      filters.areaId === String(area.id) ? "bg-primary/10 text-primary" : "",
+                    ].join(" ")}
+                    type="button"
+                    onClick={() => void selectArea(String(area.id))}
                   >
-                    Đang tải dữ liệu máy trạm
-                  </td>
-                </tr>
-              )}
-
-              {!loading && machines.length === 0 && (
-                <tr>
-                  <td
-                    className="px-4 py-10 text-center text-muted-foreground"
-                    colSpan={7}
-                  >
-                    Không có máy phù hợp bộ lọc
-                  </td>
-                </tr>
-              )}
-
-              {!loading &&
-                machines.map((machine) => (
-                  <tr className="border-t" key={machine.id}>
-                    <td className="px-4 py-4">
-                      <div className="font-medium">{machine.name}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        ID #{machine.id}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">{machine.areaName}</td>
-                    <td className="px-4 py-4">
-                      <div>{machine.cpu ?? "Chưa có CPU"}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {machine.gpu ?? "Chưa có GPU"} -{" "}
-                        {machine.ram == null ? "RAM N/A" : `${machine.ram}GB`} -{" "}
-                        {machine.fps == null ? "FPS N/A" : `${machine.fps} FPS`} -{" "}
-                        {machine.resolution ?? "N/A"}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      {formatCurrency(machine.hourlyPrice)}
-                    </td>
-                    <td className="px-4 py-4">
-                      <StatusBadge status={machine.status} />
-                    </td>
-                    <td className="px-4 py-4">
-                      <select
-                        className="h-9 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary disabled:opacity-60"
-                        disabled={saving}
-                        value={machine.status}
-                        onChange={(event) =>
-                          changeStatus(
-                            machine,
-                            event.target.value as MachineStatus
-                          )
-                        }
+                    <span className="truncate font-medium">{area.name}</span>
+                    <span className="rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
+                      {area.machineCount}
+                    </span>
+                  </button>
+                  {area.description ? (
+                    <p className="px-2 text-xs text-muted-foreground">{area.description}</p>
+                  ) : null}
+                  {canManageMachines ? (
+                    <div className="flex gap-2 px-2 pb-1">
+                      <button
+                        className="inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md border text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                        type="button"
+                        onClick={() => openEditAreaForm(area)}
                       >
-                        {statuses.map((status) => (
-                          <option key={status} value={status}>
-                            {statusLabels[status] ?? status}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                          title="Sửa máy"
-                          type="button"
-                          onClick={() => openEditForm(machine)}
-                        >
-                          <Edit3 className="size-4" />
-                        </button>
-                        <button
-                          className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10"
-                          title="Chuyển ngoại tuyến"
-                          type="button"
-                          onClick={() => markOffline(machine)}
-                        >
-                          <CircleAlert className="size-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+                        <Edit3 className="size-3.5" />
+                        Đổi tên
+                      </button>
+                      <button
+                        className="inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md border border-red-400/40 text-xs text-red-200 transition hover:bg-red-400/10 disabled:opacity-50"
+                        disabled={saving}
+                        type="button"
+                        onClick={() => void removeArea(area)}
+                      >
+                        <Trash2 className="size-3.5" />
+                        Xóa
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </aside>
 
-        <div className="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Trang {(page?.number ?? 0) + 1} / {Math.max(page?.totalPages ?? 1, 1)}
-          </span>
-          <div className="flex gap-2">
-            <button
-              className="inline-flex h-9 items-center gap-2 rounded-md border px-3 transition hover:bg-muted disabled:opacity-50"
-              disabled={loading || !page || page.first}
-              type="button"
-              onClick={() => goToPage(Math.max((page?.number ?? 0) - 1, 0))}
-            >
-              <ChevronLeft className="size-4" />
-              Trước
-            </button>
-            <button
-              className="inline-flex h-9 items-center gap-2 rounded-md border px-3 transition hover:bg-muted disabled:opacity-50"
-              disabled={loading || !page || page.last}
-              type="button"
-              onClick={() => goToPage((page?.number ?? 0) + 1)}
-            >
-              Sau
-              <ChevronRight className="size-4" />
-            </button>
+          <div className="min-h-[520px] p-4">
+            {loading ? (
+              <div className="grid min-h-[360px] place-items-center text-muted-foreground">
+                <div className="grid justify-items-center gap-3">
+                  <RefreshCw className="size-6 animate-spin" />
+                  <span>Đang tải sơ đồ máy</span>
+                </div>
+              </div>
+            ) : null}
+
+            {!loading && machines.length === 0 ? (
+              <div className="grid min-h-[360px] place-items-center rounded-md border border-dashed text-muted-foreground">
+                Không có máy phù hợp bộ lọc.
+              </div>
+            ) : null}
+
+            {!loading && machines.length > 0 ? (
+              <div className="grid gap-6">
+                {filters.areaId && selectedArea ? (
+                  <section className="grid gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold">{selectedArea.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {machines.length} máy đang hiển thị trong khu vực này
+                        </p>
+                      </div>
+                      <span className="rounded-md border px-3 py-1 text-sm text-muted-foreground">
+                        {selectedArea.description ?? "Chưa có mô tả"}
+                      </span>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {machines.map((machine) => (
+                        <MachineCard
+                          canManageMachines={canManageMachines}
+                          key={machine.id}
+                          machine={machine}
+                          saving={saving}
+                          statuses={statuses}
+                          onEdit={openEditMachineForm}
+                          onOffline={markOffline}
+                          onStatusChange={changeStatus}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : (
+                  machineGroups.map((group) => (
+                    <section className="grid gap-3" key={group.area.id}>
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2">
+                        <div>
+                          <h3 className="text-lg font-semibold">{group.area.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {group.machines.length} máy đang hiển thị
+                          </p>
+                        </div>
+                        <span className="rounded-md border px-3 py-1 text-sm text-muted-foreground">
+                          {group.area.description ?? "Chưa có mô tả"}
+                        </span>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {group.machines.map((machine) => (
+                          <MachineCard
+                            canManageMachines={canManageMachines}
+                            key={machine.id}
+                            machine={machine}
+                            saving={saving}
+                            statuses={statuses}
+                            onEdit={openEditMachineForm}
+                            onOffline={markOffline}
+                            onStatusChange={changeStatus}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ))
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

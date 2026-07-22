@@ -1,5 +1,6 @@
 package com.cybergame.controller;
 
+import com.cybergame.dto.request.AreaUpsertRequest;
 import com.cybergame.dto.request.MachineCreateRequest;
 import com.cybergame.dto.request.MachineStatusUpdateRequest;
 import com.cybergame.dto.request.MachineUpdateRequest;
@@ -86,6 +87,28 @@ public class MachineManagementController {
     @GetMapping("/areas")
     public List<AreaResponse> getAreas() {
         return machineManagementService.getAreas();
+    }
+
+    @PostMapping("/areas")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('ADMIN')")
+    public AreaResponse createArea(@Valid @RequestBody AreaUpsertRequest request) {
+        return machineManagementService.createArea(request);
+    }
+
+    @PutMapping("/areas/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AreaResponse updateArea(
+            @PathVariable Integer id,
+            @Valid @RequestBody AreaUpsertRequest request
+    ) {
+        return machineManagementService.updateArea(id, request);
+    }
+
+    @DeleteMapping("/areas/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public MessageResponse deleteArea(@PathVariable Integer id) {
+        return machineManagementService.deleteArea(id);
     }
 
     @GetMapping("/statuses")

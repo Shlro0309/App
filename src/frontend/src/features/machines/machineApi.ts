@@ -1,6 +1,7 @@
 import { httpClient } from "@/api/httpClient";
 import type {
   Area,
+  AreaFormValues,
   Machine,
   MachineFilters,
   MachineFormValues,
@@ -64,6 +65,26 @@ export async function getMachines(filters: MachineFilters) {
 export async function getMachineAreas() {
   const response = await httpClient.get<Area[]>("/machines/areas");
   return response.data;
+}
+
+export async function createMachineArea(values: AreaFormValues) {
+  const response = await httpClient.post<Area>("/machines/areas", {
+    name: values.name.trim(),
+    description: toNullableText(values.description),
+  });
+  return response.data;
+}
+
+export async function updateMachineArea(id: number, values: AreaFormValues) {
+  const response = await httpClient.put<Area>(`/machines/areas/${id}`, {
+    name: values.name.trim(),
+    description: toNullableText(values.description),
+  });
+  return response.data;
+}
+
+export async function deleteMachineArea(id: number) {
+  await httpClient.delete(`/machines/areas/${id}`);
 }
 
 export async function getMachineStatuses() {

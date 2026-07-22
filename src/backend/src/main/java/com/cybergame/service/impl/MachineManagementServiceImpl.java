@@ -1,5 +1,6 @@
 package com.cybergame.service.impl;
 
+import com.cybergame.dto.request.AreaUpsertRequest;
 import com.cybergame.dto.request.MachineCreateRequest;
 import com.cybergame.dto.request.MachineStatusUpdateRequest;
 import com.cybergame.dto.request.MachineUpdateRequest;
@@ -28,11 +29,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class MachineManagementServiceImpl implements MachineManagementService {
+
+    private static final String UNCATEGORIZED_AREA_NAME = "Chưa phân khu";
+    private static final String UNCATEGORIZED_AREA_DESCRIPTION = "Khu vực tự động cho máy chưa được phân khu";
 
     private final MachineRepository machineRepository;
     private final AreaRepository areaRepository;
@@ -146,8 +151,63 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     public List<AreaResponse> getAreas() {
         return areaRepository.findAll()
                 .stream()
-                .map(machineMapper::toAreaResponse)
+                .sorted(Comparator.comparing(Area::getName, String.CASE_INSENSITIVE_ORDER))
+                .map(this::toAreaResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public AreaResponse createArea(AreaUpsertRequest request) {
+        String name = normalizeRequired(request.name());
+        validateUniqueAreaName(null, name);
+
+        Area area = new Area();
+        area.setName(name);
+        area.setDescription(normalizeBlank(request.description()));
+
+        Area savedArea = areaRepository.save(area);
+        publishAreaChanged(savedArea, "CREATED");
+        return toAreaResponse(savedArea);
+    }
+
+    @Override
+    @Transactional
+    public AreaResponse updateArea(Integer id, AreaUpsertRequest request) {
+        Area area = getArea(id);
+        String name = normalizeRequired(request.name());
+        validateUniqueAreaName(area.getId(), name);
+
+        area.setName(name);
+        area.setDescription(normalizeBlank(request.description()));
+
+        Area savedArea = areaRepository.save(area);
+        publishAreaChanged(savedArea, "UPDATED");
+        return toAreaResponse(savedArea);
+    }
+
+    @Override
+    @Transactional
+    public MessageResponse deleteArea(Integer id) {
+        Area area = getArea(id);
+        List<Machine> machines = machineRepository.findByAreaId(area.getId());
+
+        if (!machines.isEmpty()) {
+            if (UNCATEGORIZED_AREA_NAME.equalsIgnoreCase(area.getName())) {
+                throw new BusinessException(
+                        HttpStatus.CONFLICT,
+                        "Uncategorized area cannot be deleted while machines are assigned"
+                );
+            }
+            Area fallbackArea = getOrCreateUncategorizedArea(area.getId());
+            machines.forEach(machine -> machine.setArea(fallbackArea));
+            machineRepository.saveAll(machines);
+        }
+
+        areaRepository.delete(area);
+        publishAreaChanged(area, "DELETED");
+        machines.forEach(machine -> publishMachineChanged(machine, "AREA_REASSIGNED"));
+        return new MessageResponse("Area has been deleted and machines have been moved to uncategorized area");
     }
 
     @Override
@@ -167,6 +227,19 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 .orElseThrow(() -> new ResourceNotFoundException("Area not found"));
     }
 
+    private Area getOrCreateUncategorizedArea(Integer excludedAreaId) {
+        return areaRepository.findByNameIgnoreCase(UNCATEGORIZED_AREA_NAME)
+                .filter(area -> !area.getId().equals(excludedAreaId))
+                .orElseGet(() -> {
+                    Area fallbackArea = new Area();
+                    fallbackArea.setName(UNCATEGORIZED_AREA_NAME);
+                    fallbackArea.setDescription(UNCATEGORIZED_AREA_DESCRIPTION);
+                    Area savedArea = areaRepository.save(fallbackArea);
+                    publishAreaChanged(savedArea, "CREATED");
+                    return savedArea;
+                });
+    }
+
     private void validateUniqueName(Integer currentMachineId, String name) {
         boolean exists = currentMachineId == null
                 ? machineRepository.existsByNameIgnoreCase(name)
@@ -177,11 +250,48 @@ public class MachineManagementServiceImpl implements MachineManagementService {
         }
     }
 
+    private void validateUniqueAreaName(Integer currentAreaId, String name) {
+        boolean exists = currentAreaId == null
+                ? areaRepository.existsByNameIgnoreCase(name)
+                : areaRepository.existsByNameIgnoreCaseAndIdNot(name, currentAreaId);
+
+        if (exists) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Area name already exists");
+        }
+    }
+
+    private AreaResponse toAreaResponse(Area area) {
+        return new AreaResponse(
+                area.getId(),
+                area.getName(),
+                area.getDescription(),
+                machineRepository.countByAreaId(area.getId())
+        );
+    }
+
     private String normalizeRequired(String value) {
         return value.trim();
     }
 
     private String normalizeBlank(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void publishAreaChanged(Area area, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.MACHINE_AREA_CHANGED,
+                area.getId(),
+                action,
+                "Machine area has changed"
+        );
+    }
+
+    private void publishMachineChanged(Machine machine, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.MACHINE_STATUS_CHANGED,
+                machine.getId(),
+                action,
+                "Machine has changed"
+        );
     }
 }

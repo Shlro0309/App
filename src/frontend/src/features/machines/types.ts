@@ -24,6 +24,12 @@ export type Area = {
   id: number;
   name: string;
   description: string | null;
+  machineCount: number;
+};
+
+export type AreaFormValues = {
+  name: string;
+  description: string;
 };
 
 export type MachineFilters = {
