@@ -95,13 +95,13 @@ Quy ước của dự án:
 Tạo biến môi trường theo `src/backend/.env.example`, sau đó:
 
 ```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 spring-boot:run
+powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/backend-maven.ps1 spring-boot:run "-Dspring-boot.run.arguments=--server.port=8081"
 ```
 
 Swagger UI:
 
 ```text
-http://localhost:8080/api/swagger-ui.html
+http://localhost:8081/api/swagger-ui.html
 ```
 
 ## Chạy Frontend

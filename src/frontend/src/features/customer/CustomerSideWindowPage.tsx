@@ -22,7 +22,9 @@ import type { ApiError } from "@/types/api";
 import { changePassword } from "@/features/auth/authApi";
 import { createFoodOrder } from "@/features/food-service/foodServiceApi";
 import type { FoodOrder, ServiceItem } from "@/features/food-service/types";
+import { topUpCustomerBalance } from "@/features/payments/paymentApi";
 import type { Payment } from "@/features/payments/types";
+import type { CustomerTopUpValues } from "@/features/payments/types";
 import { endPlaySession } from "@/features/play-sessions/playSessionApi";
 import type { PlaySession } from "@/features/play-sessions/types";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
@@ -38,6 +40,19 @@ type CustomerTab = "orders" | "history";
 
 const BALANCE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const TIME_WARNING_THRESHOLDS_MINUTES = [30, 10, 5];
+const TOP_UP_AMOUNTS = ["20000", "50000", "100000"];
+const BANK_ACCOUNT = {
+  bankCode: import.meta.env.VITE_CYBERGAME_BANK_CODE ?? "970436",
+  bankName: import.meta.env.VITE_CYBERGAME_BANK_NAME ?? "Vietcombank",
+  accountNumber:
+    import.meta.env.VITE_CYBERGAME_BANK_ACCOUNT_NUMBER ?? "0123456789",
+  accountName:
+    import.meta.env.VITE_CYBERGAME_BANK_ACCOUNT_NAME ?? "CYBER GAME OWNER",
+};
+const PAYMENT_METHODS = [
+  { value: "CASH", label: "Tiền mặt" },
+  { value: "BANK_TRANSFER", label: "Chuyển khoản" },
+];
 
 type TimeWarning = {
   threshold: number;
@@ -65,6 +80,26 @@ function formatCurrency(value: number | null | undefined) {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value ?? 0);
+}
+
+function bankTransferContent(username: string | undefined, amount: number) {
+  const normalizedUser =
+    username?.trim().replace(/\s+/g, "").toUpperCase() || "KHACH";
+  return `NAPTIEN ${normalizedUser} ${Math.floor(amount)}`;
+}
+
+function bankTransferQrUrl(amount: number, username: string | undefined) {
+  if (!BANK_ACCOUNT.bankCode || !BANK_ACCOUNT.accountNumber || amount <= 0) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    amount: String(Math.floor(amount)),
+    addInfo: bankTransferContent(username, amount),
+    accountName: BANK_ACCOUNT.accountName,
+  });
+
+  return `https://img.vietqr.io/image/${BANK_ACCOUNT.bankCode}-${BANK_ACCOUNT.accountNumber}-compact2.png?${params.toString()}`;
 }
 
 function formatClock(totalSeconds: number) {
@@ -355,6 +390,182 @@ function ServiceOrderModal({
   );
 }
 
+function TopUpModal({
+  username,
+  onClose,
+  onCreated,
+}: {
+  username: string | undefined;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [values, setValues] = useState<CustomerTopUpValues>({
+    amount: "50000",
+    paymentMethod: "CASH",
+  });
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const topUpAmount = useMemo(
+    () => Number(values.amount.replace(/[^\d.]/g, "")) || 0,
+    [values.amount]
+  );
+  const transferContent = bankTransferContent(username, topUpAmount);
+  const transferQrUrl = bankTransferQrUrl(topUpAmount, username);
+
+  function updateField(field: keyof CustomerTopUpValues, value: string) {
+    setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitTopUp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (topUpAmount < 1000) {
+      setMessage("Số tiền nạp tối thiểu là 1.000đ.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    try {
+      const payment = await topUpCustomerBalance({
+        amount: String(topUpAmount),
+        paymentMethod: values.paymentMethod,
+      });
+      setMessage(
+        `Đã gửi yêu cầu nạp tiền #${payment.id}. Vui lòng chờ nhân viên/admin xác nhận.`
+      );
+      onCreated();
+    } catch (topUpError) {
+      setMessage(getErrorMessage(topUpError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-end bg-black/60 p-4 backdrop-blur-sm sm:place-items-center">
+      <form
+        className="grid max-h-[86vh] w-full max-w-lg gap-4 overflow-y-auto rounded-md border bg-background p-4 shadow-2xl"
+        onSubmit={submitTopUp}
+      >
+        <div className="flex items-center justify-between gap-3 border-b pb-3">
+          <div className="flex items-center gap-2">
+            <CreditCard className="size-5 text-primary" />
+            <div>
+              <h2 className="font-semibold">Nạp tiền</h2>
+              <p className="text-xs text-muted-foreground">
+                Gửi yêu cầu nạp tiền để nhân viên/admin xác nhận thủ công.
+              </p>
+            </div>
+          </div>
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            title="Đóng"
+            type="button"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {TOP_UP_AMOUNTS.map((amount) => (
+            <button
+              className={`h-10 rounded-md border text-sm font-medium transition hover:border-primary ${
+                values.amount === amount ? "border-primary bg-primary/10 text-primary" : ""
+              }`}
+              key={amount}
+              type="button"
+              onClick={() => updateField("amount", amount)}
+            >
+              {formatCurrency(Number(amount))}
+            </button>
+          ))}
+        </div>
+
+        <label className="grid gap-2 text-sm">
+          <span className="text-muted-foreground">Số tiền nạp</span>
+          <input
+            className="h-11 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+            min={1000}
+            type="number"
+            value={values.amount}
+            onChange={(event) => updateField("amount", event.target.value)}
+          />
+        </label>
+
+        <label className="grid gap-2 text-sm">
+          <span className="text-muted-foreground">Phương thức</span>
+          <select
+            className="h-11 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+            value={values.paymentMethod}
+            onChange={(event) => updateField("paymentMethod", event.target.value)}
+          >
+            {PAYMENT_METHODS.map((method) => (
+              <option key={method.value} value={method.value}>
+                {method.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {values.paymentMethod === "BANK_TRANSFER" ? (
+          <div className="grid gap-3 rounded-md border border-primary/30 bg-primary/10 p-3 text-sm">
+            <div className="grid gap-1">
+              <span className="text-xs uppercase text-muted-foreground">
+                Tài khoản nhận chuyển khoản
+              </span>
+              <strong>{BANK_ACCOUNT.accountName}</strong>
+              <span>{BANK_ACCOUNT.bankName}</span>
+              <span className="font-mono text-base">
+                {BANK_ACCOUNT.accountNumber}
+              </span>
+            </div>
+            {transferQrUrl ? (
+              <img
+                alt="QR chuyển khoản nạp tiền"
+                className="mx-auto aspect-square w-44 rounded-md bg-white p-2"
+                src={transferQrUrl}
+              />
+            ) : null}
+            <div className="grid gap-1 rounded-md border bg-background/70 p-3">
+              <span>Số tiền: {formatCurrency(topUpAmount)}</span>
+              <span>
+                Nội dung: <strong className="font-mono">{transferContent}</strong>
+              </span>
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Sau khi khách chuyển khoản, yêu cầu sẽ ở trạng thái chờ. Nhân
+              viên/admin đối chiếu hệ thống bên ngoài rồi xác nhận trong màn
+              hình thanh toán.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+            Yêu cầu tiền mặt sẽ xuất hiện ở màn hình thanh toán để nhân viên
+            thu tiền và xác nhận.
+          </div>
+        )}
+
+        {message ? (
+          <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            {message}
+          </div>
+        ) : null}
+
+        <button
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+          disabled={saving || topUpAmount < 1000}
+          type="submit"
+        >
+          <CreditCard className="size-4" />
+          {saving ? "Đang gửi" : "Gửi yêu cầu nạp tiền"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export function CustomerSideWindowPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
@@ -364,6 +575,7 @@ export function CustomerSideWindowPage() {
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState<CustomerTab>("orders");
   const [serviceVisible, setServiceVisible] = useState(false);
+  const [topUpVisible, setTopUpVisible] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [activeSession, setActiveSession] = useState<PlaySession | null>(null);
   const [orders, setOrders] = useState<FoodOrder[]>([]);
@@ -672,9 +884,9 @@ export function CustomerSideWindowPage() {
           </button>
           <button
             className="inline-flex h-20 flex-col items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled
-            title="Nạp tiền được xử lý tại màn hình đăng nhập máy trạm khi số dư đã hết."
+            title="Gửi yêu cầu nạp tiền"
             type="button"
+            onClick={() => setTopUpVisible(true)}
           >
             <CreditCard className="size-6" />
             Nạp tiền
@@ -703,6 +915,17 @@ export function CustomerSideWindowPage() {
             services={services}
             onClose={() => setServiceVisible(false)}
             onCreated={() => void loadPanel()}
+          />
+        ) : null}
+
+        {topUpVisible ? (
+          <TopUpModal
+            username={user?.username}
+            onClose={() => setTopUpVisible(false)}
+            onCreated={() => {
+              void refreshCurrentUser();
+              void loadPanel();
+            }}
           />
         ) : null}
 
