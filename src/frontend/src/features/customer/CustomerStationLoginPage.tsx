@@ -43,12 +43,13 @@ const PAYMENT_METHODS = [
 
 function getErrorMessage(error: unknown) {
   if (error instanceof AxiosError) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      return "Tên đăng nhập hoặc mật khẩu không hợp lệ.";
+    }
+
     const data = error.response?.data as ApiError | undefined;
     if (data?.message) {
       return data.message;
-    }
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      return "Tên đăng nhập hoặc mật khẩu không hợp lệ.";
     }
   }
 
@@ -174,6 +175,10 @@ function CustomerStationLoginSurface({
 
   const balance = user?.balance ?? 0;
   const mustTopUp = user?.role === "CUSTOMER" && balance <= 0;
+  const zeroBalanceWarning =
+    mustTopUp && !reservationMode
+      ? "Số dư của bạn đang bằng 0 nên chưa thể vào phiên chơi. Vui lòng nạp thêm tiền và chờ nhân viên/admin xác nhận."
+      : null;
   const requiresReservationCode =
     reservationMode && stationReservation !== null && stationMachineId !== null;
   const topUpAmount = useMemo(
@@ -268,7 +273,6 @@ function CustomerStationLoginSurface({
       }
 
       if (!reservationMode && (loggedInUser.balance ?? 0) <= 0) {
-        setMessage("Số dư của bạn đã hết. Vui lòng nạp thêm tiền trước khi vào phiên chơi.");
         return;
       }
 
@@ -421,6 +425,13 @@ function CustomerStationLoginSurface({
               Số dư hiện tại là {formatCurrency(balance)}. Vui lòng nạp thêm tiền
               trước khi vào phiên chơi.
             </div>
+
+            {zeroBalanceWarning ? (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-200">
+                <ShieldAlert className="mt-0.5 size-4" />
+                <span>{zeroBalanceWarning}</span>
+              </div>
+            ) : null}
 
             {message ? (
               <div className="rounded-md border border-primary/35 bg-primary/10 px-3 py-2 text-sm text-emerald-200">

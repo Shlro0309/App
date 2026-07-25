@@ -15,12 +15,13 @@ import type { LoginValues } from "@/features/auth/types";
 
 function getErrorMessage(error: unknown) {
   if (error instanceof AxiosError) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      return "Tên đăng nhập hoặc mật khẩu không hợp lệ.";
+    }
+
     const data = error.response?.data as ApiError | undefined;
     if (data?.message) {
       return data.message;
-    }
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      return "Tên đăng nhập hoặc mật khẩu không hợp lệ.";
     }
   }
 

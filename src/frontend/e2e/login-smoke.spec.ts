@@ -51,6 +51,86 @@ test.describe("login surfaces", () => {
     ).toBeVisible();
   });
 
+  test("customer station login shows invalid credential message", async ({
+    page,
+  }) => {
+    await page.route("**/api/reservations/station-active**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 404,
+        body: JSON.stringify({ message: "No active reservation" }),
+      });
+    });
+    await page.route("**/api/auth/login", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 401,
+        body: JSON.stringify({
+          status: 401,
+          error: "Unauthorized",
+          message: "Invalid username or password",
+          path: "/api/auth/login",
+          fieldErrors: [],
+        }),
+      });
+    });
+
+    await page.goto("/customer/login?machineId=1");
+    await page.locator('input[autocomplete="username"]').fill("wrong_user");
+    await page.locator('input[autocomplete="current-password"]').fill("wrong_password");
+    await page.locator('button[type="submit"]').click();
+
+    await expect(
+      page.getByText("Tên đăng nhập hoặc mật khẩu không hợp lệ.")
+    ).toBeVisible();
+  });
+
+  test("customer station login with zero balance shows top-up warning", async ({
+    page,
+  }) => {
+    await page.route("**/api/reservations/station-active**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 404,
+        body: JSON.stringify({ message: "No active reservation" }),
+      });
+    });
+    await page.route("**/api/auth/login", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          accessToken: "test-access-token",
+          refreshToken: "test-refresh-token",
+          tokenType: "Bearer",
+          expiresInMinutes: 30,
+          user: {
+            userId: 10,
+            customerId: 20,
+            employeeId: null,
+            username: "zero_customer",
+            fullName: "Zero Customer",
+            email: null,
+            phoneNumber: null,
+            role: "CUSTOMER",
+            status: "ACTIVE",
+            balance: 0,
+          },
+        }),
+      });
+    });
+
+    await page.goto("/customer/login?machineId=1");
+    await page.locator('input[autocomplete="username"]').fill("zero_customer");
+    await page.locator('input[autocomplete="current-password"]').fill("password123");
+    await page.locator('button[type="submit"]').click();
+
+    await expect(page.getByText("Cần nạp tiền")).toBeVisible();
+    await expect(
+      page.getByText("Số dư của bạn đang bằng 0 nên chưa thể vào phiên chơi.")
+    ).toBeVisible();
+  });
+
   test("customer reservation station login renders reservation code field", async ({
     page,
   }) => {
