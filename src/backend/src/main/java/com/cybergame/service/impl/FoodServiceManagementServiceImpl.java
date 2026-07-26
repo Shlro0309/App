@@ -12,9 +12,11 @@ import com.cybergame.dto.response.ServiceItemResponse;
 import com.cybergame.entity.Customer;
 import com.cybergame.entity.CustomerOrder;
 import com.cybergame.entity.Employee;
+import com.cybergame.entity.Invoice;
 import com.cybergame.entity.OrderDetail;
 import com.cybergame.entity.PlaySession;
 import com.cybergame.entity.ServiceItem;
+import com.cybergame.entity.enums.InvoiceStatus;
 import com.cybergame.entity.enums.OrderStatus;
 import com.cybergame.entity.enums.PlaySessionStatus;
 import com.cybergame.entity.enums.ServiceStatus;
@@ -26,6 +28,7 @@ import com.cybergame.repository.CustomerOrderRepository;
 import com.cybergame.repository.CustomerOrderSpecifications;
 import com.cybergame.repository.CustomerRepository;
 import com.cybergame.repository.EmployeeRepository;
+import com.cybergame.repository.InvoiceRepository;
 import com.cybergame.repository.OrderDetailRepository;
 import com.cybergame.repository.PlaySessionRepository;
 import com.cybergame.repository.ServiceItemRepository;
@@ -55,8 +58,12 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class FoodServiceManagementServiceImpl implements FoodServiceManagementService {
 
+    private static final String FOOD_ORDER_TRANSACTION = "FOOD_ORDER";
+    private static final String CASH_METHOD = "CASH";
+
     private final ServiceItemRepository serviceItemRepository;
     private final CustomerOrderRepository customerOrderRepository;
+    private final InvoiceRepository invoiceRepository;
     private final OrderDetailRepository orderDetailRepository;
     private final CustomerRepository customerRepository;
     private final EmployeeRepository employeeRepository;
@@ -216,7 +223,9 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         savedOrder.setTotalAmount(totalAmount);
         orderDetailRepository.saveAll(details);
         customerOrderRepository.save(savedOrder);
+        Invoice savedInvoice = createPendingOrderInvoice(savedOrder);
         publishFoodOrderChanged(savedOrder.getId(), "ORDER_CREATED");
+        publishPaymentChanged(savedInvoice.getId(), "FOOD_ORDER_PAYMENT_CREATED");
 
         return customerOrderMapper.toResponse(getOrderById(savedOrder.getId()));
     }
@@ -245,6 +254,9 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
 
         order.setStatus(nextStatus);
         CustomerOrder savedOrder = customerOrderRepository.save(order);
+        if (nextStatus == OrderStatus.CANCELLED) {
+            cancelPendingOrderInvoice(savedOrder);
+        }
         publishFoodOrderChanged(savedOrder.getId(), savedOrder.getStatus().name());
         return customerOrderMapper.toResponse(savedOrder);
     }
@@ -264,7 +276,8 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
 
         restockOrder(order);
         order.setStatus(OrderStatus.CANCELLED);
-        customerOrderRepository.save(order);
+        CustomerOrder savedOrder = customerOrderRepository.save(order);
+        cancelPendingOrderInvoice(savedOrder);
         publishFoodOrderChanged(order.getId(), OrderStatus.CANCELLED.name());
         return new MessageResponse("Order has been cancelled");
     }
@@ -388,6 +401,39 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         );
     }
 
+    private Invoice createPendingOrderInvoice(CustomerOrder order) {
+        if (order.getTotalAmount() == null || order.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Invoice amount must be greater than 0");
+        }
+        if (invoiceRepository.existsActiveOrderInvoice(order.getId())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Order already has invoice");
+        }
+
+        Invoice invoice = new Invoice();
+        invoice.setCustomer(order.getCustomer());
+        invoice.setEmployee(order.getEmployee());
+        invoice.setPlaySession(null);
+        invoice.setOrder(order);
+        invoice.setTransactionType(FOOD_ORDER_TRANSACTION);
+        invoice.setAmount(order.getTotalAmount());
+        invoice.setPaymentMethod(CASH_METHOD);
+        invoice.setStatus(InvoiceStatus.PENDING);
+        invoice.setTransactionAt(LocalDateTime.now());
+
+        return invoiceRepository.save(invoice);
+    }
+
+    private void cancelPendingOrderInvoice(CustomerOrder order) {
+        Invoice invoice = order.getInvoice();
+        if (invoice == null || invoice.getStatus() != InvoiceStatus.PENDING) {
+            return;
+        }
+
+        invoice.setStatus(InvoiceStatus.CANCELLED);
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        publishPaymentChanged(savedInvoice.getId(), InvoiceStatus.CANCELLED.name());
+    }
+
     private void validateCanAccessOrder(CurrentUser currentUser, CustomerOrder order) {
         if (canManageFoodService(currentUser)) {
             return;
@@ -425,6 +471,15 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
                 entityId,
                 action,
                 "Food service data has changed"
+        );
+    }
+
+    private void publishPaymentChanged(Integer entityId, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.PAYMENT_CHANGED,
+                entityId,
+                action,
+                "Payment data has changed"
         );
     }
 }
