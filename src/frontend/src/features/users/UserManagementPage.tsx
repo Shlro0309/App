@@ -276,6 +276,8 @@ export function UserManagementPage() {
   const canManageRoles = currentUser?.role === "ADMIN";
   const canDeleteUsers = currentUser?.role === "ADMIN";
   const customerAccountsOnly = currentUser?.role === "EMPLOYEE";
+  const showRoleColumn = canManageRoles;
+  const tableColumnCount = showRoleColumn ? 8 : 7;
   const [roles, setRoles] = useState<Role[]>([
     { id: 1, name: "ADMIN", description: null },
     { id: 2, name: "EMPLOYEE", description: null },
@@ -674,12 +676,19 @@ export function UserManagementPage() {
         </form>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table
+            className={[
+              "w-full text-left text-sm",
+              showRoleColumn ? "min-w-[980px]" : "min-w-[860px]",
+            ].join(" ")}
+          >
             <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Tài khoản</th>
                 <th className="px-4 py-3 font-medium">Liên hệ</th>
-                <th className="px-4 py-3 font-medium">Vai trò</th>
+                {showRoleColumn ? (
+                  <th className="px-4 py-3 font-medium">Vai trò</th>
+                ) : null}
                 <th className="px-4 py-3 font-medium">Hồ sơ</th>
                 <th className="px-4 py-3 font-medium">Số dư</th>
                 <th className="px-4 py-3 font-medium">Trạng thái</th>
@@ -690,13 +699,13 @@ export function UserManagementPage() {
             <tbody className="divide-y">
               {loading ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={8}>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={tableColumnCount}>
                     Đang tải dữ liệu
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={8}>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={tableColumnCount}>
                     Chưa có tài khoản phù hợp.
                   </td>
                 </tr>
@@ -715,10 +724,10 @@ export function UserManagementPage() {
                         {user.email ?? "Chưa có email"}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="grid gap-2">
-                        <RoleBadge role={user.role} />
-                        {canManageRoles ? (
+                    {showRoleColumn ? (
+                      <td className="px-4 py-3">
+                        <div className="grid gap-2">
+                          <RoleBadge role={user.role} />
                           <select
                             className="h-8 rounded-md border bg-background px-2 text-xs outline-none transition focus:border-primary"
                             disabled={saving}
@@ -733,9 +742,9 @@ export function UserManagementPage() {
                               </option>
                             ))}
                           </select>
-                        ) : null}
-                      </div>
-                    </td>
+                        </div>
+                      </td>
+                    ) : null}
                     <td className="px-4 py-3">
                       <div className="text-xs text-muted-foreground">
                         User #{user.id}
