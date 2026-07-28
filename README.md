@@ -51,7 +51,7 @@ my_first_app/cyber_game_management/App/
 - `src/backend/`: mã nguồn backend Spring Boot.
 - `src/frontend/`: mã nguồn frontend React/Vite.
 - `public/`: tài nguyên tĩnh cấp dự án.
-- `tests/`: tài liệu và test tích hợp/e2e cấp dự án trong các giai đoạn sau.
+- `tests/`: tài liệu kiểm thử, Playwright E2E test và test tích hợp cấp dự án; JUnit backend vẫn nằm trong `src/backend/src/test` theo chuẩn Maven.
 - `config/`: tài liệu và file cấu hình mẫu cho môi trường triển khai.
 - `docs/`: tài liệu thiết kế, API và ghi chú kiến trúc.
 - `src/frontend/node_modules/`: thư viện frontend do npm quản lý tự động, không commit lên Git.
@@ -143,7 +143,7 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 13 | Reports | Đã hoàn thành backend/frontend Reports, hiện chỉ mở cho `ADMIN` |
 | 14 | Frontend | Đã tách portal vận hành cho ADMIN/EMPLOYEE, side window tại quán `/customer` và web đặt máy trước riêng cho khách gồm `/booking/login`, `/booking` |
 | 15 | WebSocket | Đã hoàn thành backend WebSocket/STOMP và frontend realtime client cho các màn hình vận hành/khách hàng |
-| 16 | Testing | Đã có kiểm tra build/lint cơ bản, chưa có test tích hợp/e2e đầy đủ |
+| 16 | Testing | Đang thực hiện; đã có Playwright smoke test cho các màn hình đăng nhập, route guard theo role và kiểm tra cột vai trò trong quản lý tài khoản |
 
 Các module đã hoàn thành vẫn tuân thủ quy tắc chính của file yêu cầu: không thay đổi schema database, backend theo mô hình `Controller -> Service -> Repository`, API trả DTO thay vì Entity, dùng MapStruct, validation và phân quyền theo role.
 
@@ -715,7 +715,7 @@ Frontend Reports hiện có:
 
 ## Kiểm thử hiện tại
 
-Backend đã build thành công, Hibernate validate được schema SQL Server hiện có và test Spring Boot cơ bản chạy đạt. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer/reservation-login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store. Nghiệp vụ đặt máy hiện đã có giữ chỗ mặc định 30 phút, trừ cọc mặc định bằng 1 giờ chơi khi đặt, hoàn cọc khi check-in đúng hạn, countdown ở trang booking và trang login đặt trước riêng cho máy trạm. Giai đoạn WebSocket đã được kiểm tra bằng lint/build frontend và build/test backend. Frontend hiện đã được bổ sung Playwright để chuẩn bị kiểm thử E2E, gồm smoke test cho các màn hình đăng nhập vận hành, đăng nhập đặt máy khách hàng, đăng nhập máy trạm thường và đăng nhập máy trạm đặt trước.
+Backend đã build thành công, Hibernate validate được schema SQL Server hiện có và test Spring Boot cơ bản chạy đạt. Frontend đã cài dependency, build TypeScript/Vite và lint thành công bằng Node.js portable trong `config/tools`. Route frontend `/login`, `/`, `/machines`, `/users`, `/reservations`, `/play-sessions`, `/food-services`, `/payments`, `/reports`, `/customer/login`, `/customer/reservation-login`, `/customer`, `/booking/login`, `/booking` và alias `/prebook` đã được bổ sung vào React Router; Dashboard ở route `/` đã kết nối API `/api/dashboard/overview`, Reports ở route `/reports` đã kết nối API `/api/reports/overview`, khu vực ứng dụng chính đã có route guard và auth store. Nghiệp vụ đặt máy hiện đã có giữ chỗ mặc định 30 phút, trừ cọc mặc định bằng 1 giờ chơi khi đặt, hoàn cọc khi check-in đúng hạn, countdown ở trang booking và trang login đặt trước riêng cho máy trạm. Giai đoạn WebSocket đã được kiểm tra bằng lint/build frontend và build/test backend. Frontend hiện đã được bổ sung Playwright E2E trong `tests/e2e`, gồm smoke test cho các màn hình đăng nhập vận hành, đăng nhập đặt máy khách hàng, đăng nhập máy trạm thường, đăng nhập máy trạm đặt trước, route guard theo role và kiểm tra riêng UI quản lý tài khoản của nhân viên không hiển thị cột vai trò.
 
 Lần cập nhật nghiệp vụ realtime số dư, hủy đặt trong 5 phút và tự hết hạn giữ chỗ đã được kiểm tra lại bằng frontend lint, frontend build và backend clean test.
 
@@ -730,12 +730,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node
 powershell -NoProfile -ExecutionPolicy Bypass -File config/scripts/frontend-node.ps1 e2e:report
 ```
 
-Ghi chú: Playwright report nằm ở `src/frontend/playwright-report/` và test artifact nằm ở `src/frontend/test-results/`; hai thư mục này chỉ dùng local và không commit lên Git.
+Ghi chú: Playwright report và test artifact nằm trong `tests/artifacts/`; thư mục này chỉ dùng local và không commit lên Git.
 
 ## Giai đoạn tiếp theo
 
-Theo lộ trình trong file yêu cầu, các module nghiệp vụ chính đã có nền backend/frontend và WebSocket realtime. Giai đoạn kế tiếp nên tập trung vào Testing:
+Theo lộ trình trong file yêu cầu, các module nghiệp vụ chính đã có nền backend/frontend, WebSocket realtime và nền Playwright E2E ban đầu. Phần Testing còn lại nên tiếp tục theo hướng:
 
 - Bổ sung test backend theo từng service quan trọng, đặc biệt các luồng đặt máy, check-in đặt trước, phiên chơi, số dư ví và thanh toán.
-- Bổ sung test frontend cho các màn hình chính và route guard theo role.
 - Bổ sung kiểm thử tích hợp/e2e cho luồng khách hàng: đăng nhập máy trạm, đặt máy từ thiết bị cá nhân, check-in bằng mã đặt trước, gọi món, nạp tiền và tự kết thúc phiên khi hết số dư.
+- Mở rộng Playwright E2E từ smoke test sang happy path/error path cho từng vai trò `ADMIN`, `EMPLOYEE` và `CUSTOMER`.

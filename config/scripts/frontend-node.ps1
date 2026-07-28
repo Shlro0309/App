@@ -13,6 +13,7 @@ if (-not (Test-Path $npmCmd)) {
 }
 
 $env:Path = "$nodeHome;$env:Path"
+$env:NODE_PATH = Join-Path $frontendDir 'node_modules'
 
 Push-Location $frontendDir
 try {
