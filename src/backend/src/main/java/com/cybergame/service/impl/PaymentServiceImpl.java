@@ -183,6 +183,7 @@ public class PaymentServiceImpl implements PaymentService {
         resolveCurrentEmployee(currentUser).ifPresent(invoice::setEmployee);
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
+        prepareFoodOrderAfterPaid(savedInvoice);
         publishPaymentChanged(savedInvoice, InvoiceStatus.PAID.name());
         return paymentMapper.toResponse(savedInvoice);
     }
@@ -225,6 +226,9 @@ public class PaymentServiceImpl implements PaymentService {
         resolveCurrentEmployee(currentUser).ifPresent(invoice::setEmployee);
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
+        if (savedInvoice.getStatus() == InvoiceStatus.PAID) {
+            prepareFoodOrderAfterPaid(savedInvoice);
+        }
         publishPaymentChanged(savedInvoice, savedInvoice.getStatus().name());
         return paymentMapper.toResponse(savedInvoice);
     }
@@ -448,12 +452,35 @@ public class PaymentServiceImpl implements PaymentService {
         return amount == null ? BigDecimal.ZERO : amount;
     }
 
+    private void prepareFoodOrderAfterPaid(Invoice invoice) {
+        CustomerOrder order = invoice.getOrder();
+        if (order == null || !FOOD_ORDER_TRANSACTION.equals(invoice.getTransactionType())) {
+            return;
+        }
+        if (order.getStatus() != OrderStatus.PENDING) {
+            return;
+        }
+
+        order.setStatus(OrderStatus.PREPARING);
+        CustomerOrder savedOrder = customerOrderRepository.save(order);
+        publishFoodOrderChanged(savedOrder.getId(), OrderStatus.PREPARING.name());
+    }
+
     private void publishPaymentChanged(Invoice invoice, String action) {
         realtimeEventPublisher.publish(
                 RealtimeEventType.PAYMENT_CHANGED,
                 invoice.getId(),
                 action,
                 "Payment data has changed"
+        );
+    }
+
+    private void publishFoodOrderChanged(Integer entityId, String action) {
+        realtimeEventPublisher.publish(
+                RealtimeEventType.FOOD_ORDER_CHANGED,
+                entityId,
+                action,
+                "Food service data has changed"
         );
     }
 }

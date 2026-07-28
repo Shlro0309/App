@@ -10,15 +10,18 @@ import com.cybergame.dto.response.MessageResponse;
 import com.cybergame.entity.Area;
 import com.cybergame.entity.Machine;
 import com.cybergame.entity.enums.MachineStatus;
+import com.cybergame.entity.enums.PlaySessionStatus;
 import com.cybergame.exception.BusinessException;
 import com.cybergame.exception.ResourceNotFoundException;
 import com.cybergame.mapper.MachineMapper;
 import com.cybergame.repository.AreaRepository;
 import com.cybergame.repository.MachineRepository;
 import com.cybergame.repository.MachineSpecifications;
+import com.cybergame.repository.PlaySessionRepository;
 import com.cybergame.service.MachineManagementService;
 import com.cybergame.websocket.RealtimeEventPublisher;
 import com.cybergame.websocket.RealtimeEventType;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,8 +44,10 @@ public class MachineManagementServiceImpl implements MachineManagementService {
 
     private final MachineRepository machineRepository;
     private final AreaRepository areaRepository;
+    private final PlaySessionRepository playSessionRepository;
     private final MachineMapper machineMapper;
     private final RealtimeEventPublisher realtimeEventPublisher;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional(readOnly = true)
@@ -120,6 +125,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     @Transactional
     public MachineResponse updateStatus(Integer id, MachineStatusUpdateRequest request) {
         Machine machine = getMachineById(id);
+        validateStatusTransition(machine, request.status());
         machine.setStatus(request.status());
         Machine savedMachine = machineRepository.save(machine);
         realtimeEventPublisher.publish(
@@ -135,15 +141,18 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     @Transactional
     public MessageResponse deleteMachine(Integer id) {
         Machine machine = getMachineById(id);
-        machine.setStatus(MachineStatus.OFFLINE);
-        machineRepository.save(machine);
+        if (playSessionRepository.existsByMachineIdAndStatus(machine.getId(), PlaySessionStatus.ACTIVE)) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Machine with active play session cannot be deleted");
+        }
+
+        hardDeleteMachine(machine.getId());
         realtimeEventPublisher.publish(
                 RealtimeEventType.MACHINE_STATUS_CHANGED,
                 machine.getId(),
-                MachineStatus.OFFLINE.name(),
-                "Machine has been set to OFFLINE"
+                "DELETED",
+                "Machine has been deleted"
         );
-        return new MessageResponse("Machine has been set to OFFLINE");
+        return new MessageResponse("Machine has been deleted");
     }
 
     @Override
@@ -220,6 +229,53 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     private Machine getMachineById(Integer id) {
         return machineRepository.findDetailedById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Machine not found"));
+    }
+
+    private void validateStatusTransition(Machine machine, MachineStatus nextStatus) {
+        if (
+                machine.getStatus() == MachineStatus.PLAYING
+                        && (nextStatus == MachineStatus.RESERVED || nextStatus == MachineStatus.MAINTENANCE)
+        ) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "Playing machine cannot be changed to reserved or maintenance"
+            );
+        }
+    }
+
+    private void hardDeleteMachine(Integer machineId) {
+        executeNative("DELETE FROM dbo.troChoi_mayTram WHERE maMay = :machineId", machineId);
+        executeNative("DELETE FROM dbo.datCho_mayTram WHERE maMay = :machineId", machineId);
+        executeNative("""
+                DELETE FROM dbo.hoaDon
+                WHERE maPhien IN (SELECT maPhien FROM dbo.phienChoi WHERE maMay = :machineId)
+                   OR maDonHang IN (
+                        SELECT maDonHang
+                        FROM dbo.donHang
+                        WHERE maPhien IN (SELECT maPhien FROM dbo.phienChoi WHERE maMay = :machineId)
+                   )
+                """, machineId);
+        executeNative("""
+                DELETE FROM dbo.chiTietDonHang
+                WHERE maDonHang IN (
+                    SELECT maDonHang
+                    FROM dbo.donHang
+                    WHERE maPhien IN (SELECT maPhien FROM dbo.phienChoi WHERE maMay = :machineId)
+                )
+                """, machineId);
+        executeNative("""
+                DELETE FROM dbo.donHang
+                WHERE maPhien IN (SELECT maPhien FROM dbo.phienChoi WHERE maMay = :machineId)
+                """, machineId);
+        executeNative("DELETE FROM dbo.lichSuBaoTri WHERE maMay = :machineId", machineId);
+        executeNative("DELETE FROM dbo.phienChoi WHERE maMay = :machineId", machineId);
+        executeNative("DELETE FROM dbo.mayTram WHERE maMay = :machineId", machineId);
+    }
+
+    private void executeNative(String sql, Integer machineId) {
+        entityManager.createNativeQuery(sql)
+                .setParameter("machineId", machineId)
+                .executeUpdate();
     }
 
     private Area getArea(Integer areaId) {

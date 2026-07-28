@@ -24,6 +24,7 @@ import com.cybergame.repository.UserRepository;
 import com.cybergame.repository.UserSpecifications;
 import com.cybergame.security.CurrentUser;
 import com.cybergame.service.UserManagementService;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -54,6 +55,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final EmployeeRepository employeeRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional(readOnly = true)
@@ -80,7 +82,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional
     public UserResponse createUser(CurrentUser currentUser, UserCreateRequest request) {
         String username = request.username().trim();
-        validateUniqueUsername(username);
+        validateUniqueUsername(null, username);
         validateUniqueEmail(null, request.email());
 
         Role role = getRole(request.role());
@@ -112,8 +114,15 @@ public class UserManagementServiceImpl implements UserManagementService {
     public UserResponse updateUser(CurrentUser currentUser, Integer id, UserUpdateRequest request) {
         User user = getUserById(id);
         validateCanAccessUser(currentUser, user);
+        String username = request.username().trim();
+        validateUniqueUsername(user.getId(), username);
         validateUniqueEmail(user.getId(), request.email());
 
+        user.setUsername(username);
+        String nextPassword = normalizeBlank(request.password());
+        if (nextPassword != null) {
+            user.setPassword(passwordEncoder.encode(nextPassword));
+        }
         user.setFullName(normalizeBlank(request.fullName()));
         user.setPhoneNumber(normalizeBlank(request.phoneNumber()));
         user.setEmail(normalizeBlank(request.email()));
@@ -165,11 +174,16 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @Transactional
     public MessageResponse deleteUser(CurrentUser currentUser, Integer id) {
+        if (!canManageAllUsers(currentUser)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin can delete accounts");
+        }
+        if (currentUser.id().equals(id)) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Current signed-in account cannot be deleted");
+        }
+
         User user = getUserById(id);
-        validateCanAccessUser(currentUser, user);
-        user.setStatus(AccountStatus.LOCKED);
-        userRepository.save(user);
-        return new MessageResponse("User account has been locked");
+        hardDeleteUser(user);
+        return new MessageResponse("User account has been deleted");
     }
 
     @Override
@@ -192,10 +206,73 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
     }
 
-    private void validateUniqueUsername(String username) {
-        if (userRepository.existsByUsername(username)) {
+    private void validateUniqueUsername(Integer currentUserId, String username) {
+        boolean exists = currentUserId == null
+                ? userRepository.existsByUsername(username)
+                : userRepository.existsByUsernameAndIdNot(username, currentUserId);
+        if (exists) {
             throw new BusinessException(HttpStatus.CONFLICT, "Username already exists");
         }
+    }
+
+    private void hardDeleteUser(User user) {
+        Customer customer = user.getCustomer();
+        Employee employee = user.getEmployee();
+
+        if (customer != null) {
+            validateCustomerHasNoActiveSession(customer.getId());
+            deleteCustomerData(customer.getId());
+        }
+        if (employee != null) {
+            unlinkAndDeleteEmployee(employee.getId());
+        }
+
+        executeNative("DELETE FROM dbo.nguoiDung WHERE maNguoiDung = :userId", "userId", user.getId());
+    }
+
+    private void validateCustomerHasNoActiveSession(Integer customerId) {
+        Number count = (Number) entityManager
+                .createNativeQuery("SELECT COUNT(1) FROM dbo.phienChoi WHERE maKhachHang = :customerId AND trangThai = 0")
+                .setParameter("customerId", customerId)
+                .getSingleResult();
+        if (count.longValue() > 0) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Customer account has active play session");
+        }
+    }
+
+    private void deleteCustomerData(Integer customerId) {
+        executeNative("""
+                DELETE FROM dbo.hoaDon
+                WHERE maKhachHang = :customerId
+                   OR maPhien IN (SELECT maPhien FROM dbo.phienChoi WHERE maKhachHang = :customerId)
+                   OR maDonHang IN (SELECT maDonHang FROM dbo.donHang WHERE maKhachHang = :customerId)
+                """, "customerId", customerId);
+        executeNative("""
+                DELETE FROM dbo.chiTietDonHang
+                WHERE maDonHang IN (SELECT maDonHang FROM dbo.donHang WHERE maKhachHang = :customerId)
+                """, "customerId", customerId);
+        executeNative("DELETE FROM dbo.donHang WHERE maKhachHang = :customerId", "customerId", customerId);
+        executeNative("DELETE FROM dbo.phienChoi WHERE maKhachHang = :customerId", "customerId", customerId);
+        executeNative("""
+                DELETE FROM dbo.datCho_mayTram
+                WHERE maDatCho IN (SELECT maDatCho FROM dbo.datCho WHERE maKhachHang = :customerId)
+                """, "customerId", customerId);
+        executeNative("DELETE FROM dbo.datCho WHERE maKhachHang = :customerId", "customerId", customerId);
+        executeNative("DELETE FROM dbo.hoiVien WHERE maKhachHang = :customerId", "customerId", customerId);
+        executeNative("DELETE FROM dbo.khachHang WHERE maKhachHang = :customerId", "customerId", customerId);
+    }
+
+    private void unlinkAndDeleteEmployee(Integer employeeId) {
+        executeNative("UPDATE dbo.hoaDon SET maNhanVien = NULL WHERE maNhanVien = :employeeId", "employeeId", employeeId);
+        executeNative("UPDATE dbo.donHang SET maNhanVien = NULL WHERE maNhanVien = :employeeId", "employeeId", employeeId);
+        executeNative("UPDATE dbo.lichSuBaoTri SET maNhanVien = NULL WHERE maNhanVien = :employeeId", "employeeId", employeeId);
+        executeNative("DELETE FROM dbo.nhanVien WHERE maNhanVien = :employeeId", "employeeId", employeeId);
+    }
+
+    private void executeNative(String sql, String parameterName, Object parameterValue) {
+        entityManager.createNativeQuery(sql)
+                .setParameter(parameterName, parameterValue)
+                .executeUpdate();
     }
 
     private void validateUniqueEmail(Integer currentUserId, String email) {

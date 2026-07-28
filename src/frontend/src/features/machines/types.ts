@@ -2,8 +2,7 @@ export type MachineStatus =
   | "AVAILABLE"
   | "RESERVED"
   | "PLAYING"
-  | "MAINTENANCE"
-  | "OFFLINE";
+  | "MAINTENANCE";
 
 export type Machine = {
   id: number;

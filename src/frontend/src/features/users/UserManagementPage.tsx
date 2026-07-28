@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
+  Trash2,
   Unlock,
   UserCog,
   Users,
@@ -19,9 +20,9 @@ import {
 import type { ApiError } from "@/types/api";
 import {
   createUser,
+  deleteUser,
   getUserRoles,
   getUsers,
-  lockUser,
   updateUser,
   updateUserBalance,
   updateUserRole,
@@ -173,7 +174,6 @@ function UserForm({
         <span className="text-muted-foreground">Tên đăng nhập</span>
         <input
           className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary disabled:opacity-60"
-          disabled={mode === "edit"}
           maxLength={50}
           required
           value={values.username}
@@ -182,10 +182,11 @@ function UserForm({
       </label>
 
       <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Mật khẩu</span>
+        <span className="text-muted-foreground">
+          {mode === "create" ? "Mật khẩu" : "Mật khẩu mới"}
+        </span>
         <input
           className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary disabled:opacity-60"
-          disabled={mode === "edit"}
           maxLength={100}
           minLength={8}
           required={mode === "create"}
@@ -273,6 +274,7 @@ function UserForm({
 export function UserManagementPage() {
   const currentUser = useAuthStore((state) => state.user);
   const canManageRoles = currentUser?.role === "ADMIN";
+  const canDeleteUsers = currentUser?.role === "ADMIN";
   const customerAccountsOnly = currentUser?.role === "EMPLOYEE";
   const [roles, setRoles] = useState<Role[]>([
     { id: 1, name: "ADMIN", description: null },
@@ -453,11 +455,37 @@ export function UserManagementPage() {
     setError(null);
     setSuccess(null);
     try {
-      await lockUser(user.id);
+      await updateUserStatus(user.id, "LOCKED");
       setSuccess("Đã khóa tài khoản.");
       await loadUsers(filters);
     } catch (saveError) {
       setError(getErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeAccount(user: User) {
+    if (!canDeleteUsers) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Xóa vĩnh viễn tài khoản ${user.username}? Dữ liệu liên quan sẽ bị xóa khỏi database.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await deleteUser(user.id);
+      setSuccess("Đã xóa tài khoản.");
+      await loadUsers(filters);
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError));
     } finally {
       setSaving(false);
     }
@@ -781,6 +809,17 @@ export function UserManagementPage() {
                             <Unlock className="size-4" />
                           </button>
                         )}
+                        {canDeleteUsers && currentUser?.userId !== user.id ? (
+                          <button
+                            className="inline-flex size-9 items-center justify-center rounded-md border border-red-400/40 text-red-200 transition hover:bg-red-400/10"
+                            disabled={saving}
+                            title="Xóa tài khoản"
+                            type="button"
+                            onClick={() => void removeAccount(user)}
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

@@ -251,6 +251,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         if (nextStatus == OrderStatus.CANCELLED && currentStatus != OrderStatus.COMPLETED) {
             restockOrder(order);
         }
+        validatePaymentBeforeProcessing(order, nextStatus);
 
         order.setStatus(nextStatus);
         CustomerOrder savedOrder = customerOrderRepository.save(order);
@@ -432,6 +433,20 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         invoice.setStatus(InvoiceStatus.CANCELLED);
         Invoice savedInvoice = invoiceRepository.save(invoice);
         publishPaymentChanged(savedInvoice.getId(), InvoiceStatus.CANCELLED.name());
+    }
+
+    private void validatePaymentBeforeProcessing(CustomerOrder order, OrderStatus nextStatus) {
+        if (order.getStatus() != OrderStatus.PENDING || nextStatus == OrderStatus.PENDING || nextStatus == OrderStatus.CANCELLED) {
+            return;
+        }
+
+        Invoice invoice = order.getInvoice();
+        if (invoice == null || invoice.getStatus() != InvoiceStatus.PAID) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "Food order can only be processed after its payment is paid"
+            );
+        }
     }
 
     private void validateCanAccessOrder(CurrentUser currentUser, CustomerOrder order) {

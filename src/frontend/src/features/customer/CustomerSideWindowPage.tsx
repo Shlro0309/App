@@ -74,6 +74,18 @@ function getErrorMessage(error: unknown) {
   return "Không thể xử lý yêu cầu.";
 }
 
+function isAlreadyClosedSessionError(error: unknown) {
+  if (!(error instanceof AxiosError)) {
+    return false;
+  }
+
+  const data = error.response?.data as ApiError | undefined;
+  return (
+    error.response?.status === 409 &&
+    Boolean(data?.message?.toLowerCase().includes("already closed"))
+  );
+}
+
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -595,7 +607,12 @@ export function CustomerSideWindowPage() {
   const customerId = user?.customerId;
 
   useEffect(() => {
-    if (user?.role === "CUSTOMER" && (user.balance ?? 0) <= 0) {
+    if (
+      user?.role === "CUSTOMER" &&
+      (user.balance ?? 0) <= 0 &&
+      !activeSession &&
+      !loading
+    ) {
       navigate("/customer/login", {
         replace: true,
         state: {
@@ -603,7 +620,7 @@ export function CustomerSideWindowPage() {
         },
       });
     }
-  }, [navigate, user?.balance, user?.role]);
+  }, [activeSession, loading, navigate, user?.balance, user?.role]);
 
   const loadPanel = useCallback(async () => {
     if (!customerId) {
@@ -739,6 +756,18 @@ export function CustomerSideWindowPage() {
   }, [timeWarning]);
 
   async function handleLogout() {
+    setError(null);
+    if (activeSession) {
+      try {
+        await endPlaySession(activeSession.id);
+      } catch (logoutError) {
+        if (!isAlreadyClosedSessionError(logoutError)) {
+          setError(getErrorMessage(logoutError));
+          return;
+        }
+      }
+    }
+
     await logout();
     navigate("/customer/login", { replace: true });
   }

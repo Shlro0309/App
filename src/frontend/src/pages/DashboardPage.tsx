@@ -35,7 +35,6 @@ const machineStatusLabels: Record<string, string> = {
   RESERVED: "Đã đặt",
   PLAYING: "Đang chơi",
   MAINTENANCE: "Bảo trì",
-  OFFLINE: "Ngừng",
 };
 
 const invoiceStatusLabels: Record<string, string> = {

@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AxiosError } from "axios";
 import {
   CheckCircle2,
-  CircleAlert,
   Cpu,
   Edit3,
   Layers3,
@@ -21,11 +20,11 @@ import { useAuthStore } from "@/stores/authStore";
 import {
   createMachine,
   createMachineArea,
+  deleteMachine,
   deleteMachineArea,
   getMachineAreas,
   getMachines,
   getMachineStatuses,
-  setMachineOffline,
   updateMachine,
   updateMachineArea,
   updateMachineStatus,
@@ -70,7 +69,6 @@ const statusLabels: Record<MachineStatus, string> = {
   RESERVED: "Đã đặt",
   PLAYING: "Đang chơi",
   MAINTENANCE: "Bảo trì",
-  OFFLINE: "Ngoại tuyến",
 };
 
 const statusClassNames: Record<MachineStatus, string> = {
@@ -78,7 +76,6 @@ const statusClassNames: Record<MachineStatus, string> = {
   RESERVED: "border-sky-400/35 bg-sky-400/10 text-sky-200",
   PLAYING: "border-primary/35 bg-primary/10 text-primary",
   MAINTENANCE: "border-amber-400/35 bg-amber-400/10 text-amber-200",
-  OFFLINE: "border-slate-500/50 bg-slate-500/10 text-slate-300",
 };
 
 function getErrorMessage(error: unknown) {
@@ -393,8 +390,8 @@ type MachineCardProps = {
   machine: Machine;
   saving: boolean;
   statuses: MachineStatus[];
+  onDelete: (machine: Machine) => void;
   onEdit: (machine: Machine) => void;
-  onOffline: (machine: Machine) => void;
   onStatusChange: (machine: Machine, status: MachineStatus) => void;
 };
 
@@ -403,8 +400,8 @@ function MachineCard({
   machine,
   saving,
   statuses,
+  onDelete,
   onEdit,
-  onOffline,
   onStatusChange,
 }: MachineCardProps) {
   return (
@@ -443,7 +440,14 @@ function MachineCard({
             }
           >
             {statuses.map((status) => (
-              <option key={status} value={status}>
+              <option
+                disabled={
+                  machine.status === "PLAYING" &&
+                  (status === "RESERVED" || status === "MAINTENANCE")
+                }
+                key={status}
+                value={status}
+              >
                 {statusLabels[status] ?? status}
               </option>
             ))}
@@ -458,12 +462,13 @@ function MachineCard({
               <Edit3 className="size-4" />
             </button>
             <button
-              className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10"
-              title="Chuyển ngoại tuyến"
+              className="inline-flex size-9 items-center justify-center rounded-md border border-red-400/40 text-red-200 transition hover:bg-red-400/10 disabled:opacity-50"
+              disabled={saving}
+              title="Xóa máy"
               type="button"
-              onClick={() => onOffline(machine)}
+              onClick={() => onDelete(machine)}
             >
-              <CircleAlert className="size-4" />
+              <Trash2 className="size-4" />
             </button>
           </div>
         </div>
@@ -481,7 +486,6 @@ export function MachineManagementPage() {
     "RESERVED",
     "PLAYING",
     "MAINTENANCE",
-    "OFFLINE",
   ]);
   const [filters, setFilters] = useState<MachineFilters>(defaultFilters);
   const [page, setPage] = useState<PageResponse<Machine> | null>(null);
@@ -737,13 +741,20 @@ export function MachineManagementPage() {
     }
   }
 
-  async function markOffline(machine: Machine) {
+  async function removeMachine(machine: Machine) {
+    const confirmed = window.confirm(
+      `Xóa vĩnh viễn máy ${machine.name}? Dữ liệu liên quan sẽ bị xóa khỏi database.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setSuccess(null);
     try {
-      await setMachineOffline(machine.id);
-      setSuccess(`Đã chuyển ${machine.name} sang ngoại tuyến.`);
+      await deleteMachine(machine.id);
+      setSuccess(`Đã xóa máy ${machine.name}.`);
       await reloadWorkspace(filters);
     } catch (deleteError) {
       setError(getErrorMessage(deleteError));
@@ -991,8 +1002,8 @@ export function MachineManagementPage() {
                           machine={machine}
                           saving={saving}
                           statuses={statuses}
+                          onDelete={removeMachine}
                           onEdit={openEditMachineForm}
-                          onOffline={markOffline}
                           onStatusChange={changeStatus}
                         />
                       ))}
@@ -1020,8 +1031,8 @@ export function MachineManagementPage() {
                             machine={machine}
                             saving={saving}
                             statuses={statuses}
+                            onDelete={removeMachine}
                             onEdit={openEditMachineForm}
-                            onOffline={markOffline}
                             onStatusChange={changeStatus}
                           />
                         ))}

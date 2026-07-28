@@ -27,6 +27,8 @@ function toCreatePayload(values: UserFormValues) {
 
 function toUpdatePayload(values: UserFormValues) {
   return {
+    username: values.username.trim(),
+    password: optionalText(values.password),
     fullName: optionalText(values.fullName),
     phoneNumber: optionalText(values.phoneNumber),
     email: optionalText(values.email),
@@ -87,6 +89,6 @@ export async function updateUserBalance(id: number, balance: number) {
   return response.data;
 }
 
-export async function lockUser(id: number) {
+export async function deleteUser(id: number) {
   await httpClient.delete(`/users/${id}`);
 }

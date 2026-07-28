@@ -6,8 +6,7 @@ public enum MachineStatus implements PersistableEnum {
     AVAILABLE(0),
     RESERVED(1),
     PLAYING(2),
-    MAINTENANCE(3),
-    OFFLINE(4);
+    MAINTENANCE(3);
 
     private final short code;
 
@@ -21,6 +20,10 @@ public enum MachineStatus implements PersistableEnum {
     }
 
     public static MachineStatus fromCode(short code) {
+        if (code == 4) {
+            return AVAILABLE;
+        }
+
         return Arrays.stream(values())
                 .filter(status -> status.code == code)
                 .findFirst()

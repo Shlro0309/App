@@ -115,6 +115,6 @@ export async function updateMachineStatus(id: number, status: MachineStatus) {
   return response.data;
 }
 
-export async function setMachineOffline(id: number) {
+export async function deleteMachine(id: number) {
   await httpClient.delete(`/machines/${id}`);
 }

@@ -133,8 +133,8 @@ Tiến độ hiện tại được cập nhật theo file yêu cầu dự án:
 | 3 | Kết nối SQL Server | Đã hoàn thành |
 | 4 | Spring Security + JWT | Đã hoàn thành |
 | 5 | Authentication | Đã hoàn thành |
-| 6 | User Management | Đã hoàn thành backend/frontend, nhân viên được mở module tài khoản nhưng chỉ thao tác tài khoản khách hàng; admin và nhân viên đều chỉnh được số dư khách hàng, màn hình tài khoản tự cập nhật số dư theo realtime và chu kỳ 30 giây |
-| 7 | Machine Management | Đã hoàn thành backend/frontend; quản lý máy theo khu vực, hiển thị sơ đồ máy dạng grid, hỗ trợ thêm/sửa/xóa khu vực và không xóa máy khi xóa khu |
+| 6 | User Management | Đã hoàn thành backend/frontend, nhân viên được mở module tài khoản nhưng chỉ thao tác tài khoản khách hàng; admin và nhân viên đều đổi được tên đăng nhập/mật khẩu, chỉnh số dư khách hàng; riêng admin được xóa cứng tài khoản khỏi database |
+| 7 | Machine Management | Đã hoàn thành backend/frontend; quản lý máy theo khu vực, hiển thị sơ đồ máy dạng grid, hỗ trợ thêm/sửa/xóa khu vực, admin được xóa cứng máy và máy đang chơi không được chuyển sang đã đặt/bảo trì |
 | 8 | Reservation | Đã hoàn thành backend/frontend; giữ chỗ mặc định 30 phút, đặt cọc 1 giờ, khách chỉ hủy trong 5 phút đầu sau xác nhận, quá hạn tự chuyển `EXPIRED` và không hoàn cọc |
 | 9 | Play Session | Đã hoàn thành backend/frontend; phiên chơi trừ số dư theo thời gian sử dụng và cập nhật realtime cho màn hình vận hành |
 | 10 | Food Service | Đã hoàn thành backend, đã bổ sung frontend quản lý dịch vụ và đơn gọi món ở workspace hiện tại |
@@ -220,7 +220,7 @@ Lưu ý: refresh token hiện được xử lý stateless bằng JWT vì dự á
 - API quản lý tài khoản yêu cầu role `ADMIN` bằng `@PreAuthorize("hasRole('ADMIN')")`.
 - Khi tạo tài khoản role `CUSTOMER`, hệ thống tạo hồ sơ khách hàng tối thiểu trong bảng `khachHang`.
 - Khi tạo tài khoản role `EMPLOYEE`, hệ thống tạo hồ sơ nhân viên tối thiểu trong bảng `nhanVien`.
-- API xóa tài khoản được xử lý theo hướng khóa tài khoản (`LOCKED`) thay vì xóa vật lý để giữ an toàn dữ liệu lịch sử.
+- API xóa tài khoản hiện chỉ cho `ADMIN` thực hiện xóa cứng khỏi database; hệ thống chặn xóa chính tài khoản đang đăng nhập và chặn xóa khách hàng còn phiên chơi active.
 - Không bổ sung bảng mới và không thay đổi cấu trúc database.
 
 Các API User Management hiện có:
@@ -254,7 +254,8 @@ Frontend User Management hiện có:
 - Tạo bộ lọc theo từ khóa, role và trạng thái tài khoản.
 - Tạo bảng danh sách tài khoản có phân trang.
 - Tạo form thêm tài khoản mới cho `ADMIN`, `EMPLOYEE` hoặc `CUSTOMER`.
-- Cho phép sửa thông tin liên hệ, đổi role, khóa tài khoản và mở khóa tài khoản trực tiếp từ bảng.
+- Cho phép sửa tên đăng nhập, đổi mật khẩu mới, sửa thông tin liên hệ, đổi role, khóa tài khoản và mở khóa tài khoản trực tiếp từ bảng.
+- Cho phép riêng `ADMIN` xóa vĩnh viễn tài khoản trực tiếp từ bảng; `EMPLOYEE` không thấy thao tác xóa.
 - Cho phép `ADMIN` và `EMPLOYEE` điều chỉnh số dư tài khoản khách hàng trực tiếp trong bảng bằng `PATCH /api/users/{id}/balance`.
 - Màn hình tài khoản của `ADMIN` và `EMPLOYEE` tự reload số dư khách hàng khi có realtime event liên quan đến phiên chơi, thanh toán hoặc đặt máy; đồng thời có polling nền 30 giây để số dư vẫn cập nhật khi websocket bị trễ.
 - Giới hạn nghiệp vụ cho `EMPLOYEE`: chỉ thấy tài khoản `CUSTOMER`, chỉ tạo/sửa/khóa/mở khóa tài khoản khách hàng, không được đổi role và danh sách role chỉ trả về `CUSTOMER`.
@@ -273,8 +274,10 @@ Lưu ý: file SQL gốc hiện chỉ chứa schema. Workspace hiện có thêm s
 - Tạo `MachineMapper` bằng MapStruct để chuyển Entity sang DTO, không trả Entity trực tiếp ra API.
 - Mở rộng `MachineRepository` với `JpaSpecificationExecutor` để hỗ trợ tìm kiếm, lọc, phân trang và sắp xếp.
 - Tạo `MachineSpecifications` để lọc theo từ khóa, khu vực và trạng thái máy.
-- API thêm, sửa, đổi trạng thái và khóa máy yêu cầu role `ADMIN` bằng `@PreAuthorize("hasRole('ADMIN')")`.
-- API xóa máy được xử lý theo hướng chuyển trạng thái sang `OFFLINE` thay vì xóa vật lý để giữ an toàn dữ liệu lịch sử.
+- API thêm, sửa, đổi trạng thái và xóa máy yêu cầu role `ADMIN` bằng `@PreAuthorize("hasRole('ADMIN')")`.
+- Trạng thái máy không còn `OFFLINE`; máy ngừng sử dụng tạm thời được đưa về `MAINTENANCE`.
+- Cho phép `ADMIN` xóa cứng máy khỏi database khi máy không còn phiên chơi active; dữ liệu liên quan trực tiếp đến máy được dọn trước khi xóa máy.
+- Khi máy đang `PLAYING`, backend chặn chuyển trạng thái thủ công sang `RESERVED` hoặc `MAINTENANCE`.
 - Bổ sung API quản lý khu vực máy dựa trên bảng `khuVuc` hiện có; không tạo thêm bảng `khuVucMay` vì `mayTram.maKhuVuc` đã là quan hệ khu vực của máy.
 - `GET /api/machines/areas` trả danh sách khu vực kèm số lượng máy để frontend hiển thị tổng máy theo từng khu.
 - Cho phép `ADMIN` tạo khu vực, đổi tên/cập nhật mô tả khu vực và xóa khu vực.
@@ -301,7 +304,7 @@ Các tham số hỗ trợ cho `GET /api/machines`:
 ```text
 keyword: tìm theo tên máy, CPU, GPU, độ phân giải, tên khu vực
 areaId: lọc theo khu vực
-status: AVAILABLE, RESERVED, PLAYING, MAINTENANCE, OFFLINE
+status: AVAILABLE, RESERVED, PLAYING, MAINTENANCE
 page, size, sort: phân trang và sắp xếp theo chuẩn Spring Pageable
 ```
 
@@ -312,8 +315,9 @@ Frontend Machine Management hiện có:
 - Tạo bộ lọc theo từ khóa và trạng thái; chọn khu vực ở sidebar để xem sơ đồ máy của khu đó.
 - Thay bảng danh sách máy bằng sơ đồ máy dạng grid theo khu vực; mỗi thẻ máy hiển thị tên máy, trạng thái, giá giờ và cấu hình CPU/GPU/RAM/FPS/độ phân giải.
 - Tạo form thêm máy và sửa thông tin máy.
-- Cho phép đổi trạng thái máy trực tiếp từ thẻ máy.
-- Cho phép chuyển máy sang `OFFLINE` theo API xóa mềm của backend.
+- Cho phép đổi trạng thái máy trực tiếp từ thẻ máy; nếu máy đang `PLAYING`, frontend vô hiệu hóa lựa chọn `RESERVED` và `MAINTENANCE`, backend tiếp tục chặn lại nếu có request không hợp lệ.
+- Cho phép riêng `ADMIN` xóa vĩnh viễn máy trực tiếp từ thẻ máy.
+- Không còn thao tác chuyển máy sang `OFFLINE`; admin dùng trạng thái `MAINTENANCE` khi cần tạm ngừng sử dụng máy.
 - Cho phép `ADMIN` thêm khu vực, đổi tên khu vực và xóa khu vực ngay trong màn hình máy trạm.
 - Kết nối frontend với các API `/api/machines`, `/api/machines/areas`, `/api/machines/areas/{id}` và `/api/machines/statuses`.
 - Sidebar đã có điều hướng thật cho Dashboard và Máy trạm; các module chưa làm được để trạng thái chưa hoạt động để tránh vào route lỗi.
