@@ -17,7 +17,7 @@ BEGIN TRY
     DECLARE @now datetime = GETDATE();
     DECLARE @today datetime = CONVERT(date, @now);
     DECLARE @tomorrow datetime = DATEADD(day, 1, @today);
-    DECLARE @password nvarchar(255) = N'$2a$10$ngfUHhJDoEB.2C3m2NGEpe7tGLRFtzOfOdUaLO8bwULJcjrEL.0EK';
+    DECLARE @password nvarchar(255) = N'$2a$10$Q0mBjkwIscPnNHndcgJkIumJu90e5QMxa0.nrk0RY9BfldySt4Dl2';
 
     DECLARE @adminRole int = (SELECT maQuyen FROM dbo.phanQuyen WHERE tenQuyen = N'ADMIN');
     DECLARE @employeeRole int = (SELECT maQuyen FROM dbo.phanQuyen WHERE tenQuyen = N'EMPLOYEE');
@@ -71,11 +71,64 @@ BEGIN TRY
         VALUES (N'demo_customer_03', @password, N'Le Gia Huy', '0901000103', N'huy.demo@cybergame.local', @customerRole, 1, DATEADD(day, -9, @now));
     END;
 
+    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'admin_demo')
+    BEGIN
+        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
+        VALUES (N'admin_demo', @password, N'Admin Demo', '0902000001', N'admin.demo.smoke@cybergame.local', @adminRole, 1, @now);
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'employee_demo')
+    BEGIN
+        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
+        VALUES (N'employee_demo', @password, N'Employee Demo', '0902000002', N'employee.demo.smoke@cybergame.local', @employeeRole, 1, @now);
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'customer_demo')
+    BEGIN
+        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
+        VALUES (N'customer_demo', @password, N'Customer Demo', '0902000003', N'customer.demo.smoke@cybergame.local', @customerRole, 1, @now);
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'demo_user')
+    BEGIN
+        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
+        VALUES (N'demo_user', @password, N'Demo User', '0902000004', N'demo.user.smoke@cybergame.local', @customerRole, 1, @now);
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'zero_customer')
+    BEGIN
+        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
+        VALUES (N'zero_customer', @password, N'Zero Customer', '0902000005', N'zero.customer.smoke@cybergame.local', @customerRole, 1, @now);
+    END;
+
+    UPDATE dbo.nguoiDung
+    SET matKhau = @password,
+        trangThai = 1
+    WHERE tenDangNhap IN (
+        N'demo_admin',
+        N'demo_employee',
+        N'demo_customer_01',
+        N'demo_customer_02',
+        N'demo_customer_03',
+        N'admin_demo',
+        N'employee_demo',
+        N'customer_demo',
+        N'demo_user',
+        N'zero_customer'
+    );
+
     DECLARE @employeeUser int = (SELECT maNguoiDung FROM dbo.nguoiDung WHERE tenDangNhap = N'demo_employee');
     IF NOT EXISTS (SELECT 1 FROM dbo.nhanVien WHERE maNguoiDung = @employeeUser)
     BEGIN
         INSERT INTO dbo.nhanVien (maNguoiDung, caLamViec, ngayVaoLam)
         VALUES (@employeeUser, N'Ca chiều', DATEADD(day, -18, CONVERT(date, @now)));
+    END;
+
+    DECLARE @smokeEmployeeUser int = (SELECT maNguoiDung FROM dbo.nguoiDung WHERE tenDangNhap = N'employee_demo');
+    IF NOT EXISTS (SELECT 1 FROM dbo.nhanVien WHERE maNguoiDung = @smokeEmployeeUser)
+    BEGIN
+        INSERT INTO dbo.nhanVien (maNguoiDung, caLamViec, ngayVaoLam)
+        VALUES (@smokeEmployeeUser, N'Demo', CONVERT(date, @now));
     END;
 
     INSERT INTO dbo.khachHang (maNguoiDung, soDu, trangThaiOnline, ngayDangKy)
@@ -94,6 +147,24 @@ BEGIN TRY
     SELECT u.maNguoiDung, 90000, 0, DATEADD(day, -9, @now)
     FROM dbo.nguoiDung u
     WHERE u.tenDangNhap = N'demo_customer_03'
+      AND NOT EXISTS (SELECT 1 FROM dbo.khachHang c WHERE c.maNguoiDung = u.maNguoiDung);
+
+    INSERT INTO dbo.khachHang (maNguoiDung, soDu, trangThaiOnline, ngayDangKy)
+    SELECT u.maNguoiDung, 120000, 0, @now
+    FROM dbo.nguoiDung u
+    WHERE u.tenDangNhap = N'customer_demo'
+      AND NOT EXISTS (SELECT 1 FROM dbo.khachHang c WHERE c.maNguoiDung = u.maNguoiDung);
+
+    INSERT INTO dbo.khachHang (maNguoiDung, soDu, trangThaiOnline, ngayDangKy)
+    SELECT u.maNguoiDung, 120000, 0, @now
+    FROM dbo.nguoiDung u
+    WHERE u.tenDangNhap = N'demo_user'
+      AND NOT EXISTS (SELECT 1 FROM dbo.khachHang c WHERE c.maNguoiDung = u.maNguoiDung);
+
+    INSERT INTO dbo.khachHang (maNguoiDung, soDu, trangThaiOnline, ngayDangKy)
+    SELECT u.maNguoiDung, 0, 0, @now
+    FROM dbo.nguoiDung u
+    WHERE u.tenDangNhap = N'zero_customer'
       AND NOT EXISTS (SELECT 1 FROM dbo.khachHang c WHERE c.maNguoiDung = u.maNguoiDung);
 
     IF NOT EXISTS (SELECT 1 FROM dbo.khuVuc WHERE tenKhuVuc = N'Khu Alpha')
@@ -144,15 +215,26 @@ BEGIN TRY
     DECLARE @mBeta01 int = (SELECT maMay FROM dbo.mayTram WHERE tenMay = N'BETA-01');
 
     IF NOT EXISTS (SELECT 1 FROM dbo.dichVu WHERE tenDichVu = N'Sting dâu')
-        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Sting dâu', 15000, N'Nước uống', NULL, 40, 1);
+        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Sting dâu', 15000, N'Nước uống', N'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=640&q=80', 40, 1);
     IF NOT EXISTS (SELECT 1 FROM dbo.dichVu WHERE tenDichVu = N'Mì ly hải sản')
-        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Mì ly hải sản', 25000, N'Đồ ăn', NULL, 18, 1);
+        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Mì ly hải sản', 25000, N'Đồ ăn', N'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=640&q=80', 18, 1);
     IF NOT EXISTS (SELECT 1 FROM dbo.dichVu WHERE tenDichVu = N'Combo snack')
-        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Combo snack', 35000, N'Combo', NULL, 4, 1);
+        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Combo snack', 35000, N'Combo', N'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?auto=format&fit=crop&w=640&q=80', 4, 1);
     IF NOT EXISTS (SELECT 1 FROM dbo.dichVu WHERE tenDichVu = N'Cà phê lon')
-        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Cà phê lon', 18000, N'Nước uống', NULL, 25, 1);
+        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Cà phê lon', 18000, N'Nước uống', N'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=640&q=80', 25, 1);
     IF NOT EXISTS (SELECT 1 FROM dbo.dichVu WHERE tenDichVu = N'Trà chanh')
-        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Trà chanh', 12000, N'Nước uống', NULL, 0, 0);
+        INSERT INTO dbo.dichVu (tenDichVu, gia, loaiDichVu, hinhAnh, soLuongTon, trangThai) VALUES (N'Trà chanh', 12000, N'Nước uống', N'https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=640&q=80', 0, 0);
+
+    UPDATE dbo.dichVu
+    SET hinhAnh = CASE tenDichVu
+        WHEN N'Sting dâu' THEN N'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=640&q=80'
+        WHEN N'Mì ly hải sản' THEN N'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=640&q=80'
+        WHEN N'Combo snack' THEN N'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?auto=format&fit=crop&w=640&q=80'
+        WHEN N'Cà phê lon' THEN N'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=640&q=80'
+        WHEN N'Trà chanh' THEN N'https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=640&q=80'
+        ELSE hinhAnh
+    END
+    WHERE tenDichVu IN (N'Sting dâu', N'Mì ly hải sản', N'Combo snack', N'Cà phê lon', N'Trà chanh');
 
     DECLARE @dc1 int;
     IF NOT EXISTS (SELECT 1 FROM dbo.datCho WHERE maKhachHang = @c3 AND thoiGianDat >= @today AND thoiGianDat < @tomorrow AND trangThai IN (0, 1))

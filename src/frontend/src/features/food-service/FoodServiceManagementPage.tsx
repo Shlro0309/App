@@ -7,6 +7,7 @@ import {
   CircleAlert,
   ClipboardList,
   Edit3,
+  ImageIcon,
   PackageCheck,
   Plus,
   RefreshCw,
@@ -86,9 +87,10 @@ const orderStatusLabels: Record<FoodOrderStatus, string> = {
   CANCELLED: "Đã hủy",
 };
 
-const serviceStatusClassNames: Record<ServiceItemStatus, string> = {
-  ACTIVE: "border-emerald-400/35 bg-emerald-400/10 text-emerald-200",
-  INACTIVE: "border-slate-500/50 bg-slate-500/10 text-slate-300",
+const serviceCardClassNames: Record<ServiceItemStatus, string> = {
+  ACTIVE:
+    "border-emerald-400/35 bg-emerald-950/35 shadow-[inset_0_1px_0_rgba(52,211,153,0.14)]",
+  INACTIVE: "border-slate-600/55 bg-slate-900/80 opacity-75",
 };
 
 const orderStatusClassNames: Record<FoodOrderStatus, string> = {
@@ -142,13 +144,36 @@ function serviceToFormValues(serviceItem: ServiceItem): ServiceItemFormValues {
   };
 }
 
-function ServiceStatusBadge({ status }: { status: ServiceItemStatus }) {
+function ServiceImageFrame({
+  imageUrl,
+  alt,
+  className = "",
+}: {
+  imageUrl: string | null;
+  alt: string;
+  className?: string;
+}) {
+  const normalizedImageUrl = imageUrl?.trim() || null;
+
   return (
-    <span
-      className={`inline-flex h-7 items-center rounded-md border px-2 text-xs font-medium ${serviceStatusClassNames[status]}`}
+    <div
+      className={`relative overflow-hidden rounded-md border border-white/10 bg-slate-950 ${className}`}
     >
-      {serviceStatusLabels[status]}
-    </span>
+      <div className="absolute inset-0 grid place-items-center text-muted-foreground">
+        <ImageIcon className="size-8" />
+      </div>
+      {normalizedImageUrl ? (
+        <img
+          alt={alt}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+          src={normalizedImageUrl}
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -271,16 +296,23 @@ function ServiceForm({
           Hủy
         </button>
       </div>
-      <label className="grid gap-2 text-sm lg:col-span-6">
-        <span className="text-muted-foreground">Ảnh</span>
-        <input
-          className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
-          maxLength={255}
-          placeholder="URL ảnh dịch vụ"
-          value={values.imageUrl}
-          onChange={(event) => updateField("imageUrl", event.target.value)}
+      <div className="grid gap-3 lg:col-span-6 lg:grid-cols-[1fr_120px] lg:items-end">
+        <label className="grid gap-2 text-sm">
+          <span className="text-muted-foreground">Ảnh</span>
+          <input
+            className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+            maxLength={255}
+            placeholder="URL ảnh dịch vụ"
+            value={values.imageUrl}
+            onChange={(event) => updateField("imageUrl", event.target.value)}
+          />
+        </label>
+        <ServiceImageFrame
+          alt={values.name || "Ảnh dịch vụ"}
+          className="aspect-[4/3] w-full"
+          imageUrl={values.imageUrl}
         />
-      </label>
+      </div>
     </form>
   );
 }
@@ -431,6 +463,114 @@ function OrderForm({
         Thêm dòng
       </button>
     </form>
+  );
+}
+
+type ServiceCardProps = {
+  serviceItem: ServiceItem;
+  saving: boolean;
+  statuses: ServiceItemStatus[];
+  onDeactivate: (serviceItem: ServiceItem) => void;
+  onEdit: (serviceItem: ServiceItem) => void;
+  onStatusChange: (
+    serviceItem: ServiceItem,
+    status: ServiceItemStatus
+  ) => void;
+};
+
+function ServiceCard({
+  serviceItem,
+  saving,
+  statuses,
+  onDeactivate,
+  onEdit,
+  onStatusChange,
+}: ServiceCardProps) {
+  return (
+    <article
+      aria-label={`${serviceItem.name} - ${
+        serviceStatusLabels[serviceItem.status] ?? serviceItem.status
+      }`}
+      className={[
+        "grid min-h-[420px] gap-4 rounded-md border p-4 transition",
+        serviceCardClassNames[serviceItem.status],
+      ].join(" ")}
+    >
+      <ServiceImageFrame
+        alt={serviceItem.name}
+        className="aspect-[4/3] w-full"
+        imageUrl={serviceItem.imageUrl}
+      />
+
+      <div className="grid gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-base font-semibold">
+            {serviceItem.name}
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            ID #{serviceItem.id}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <p className="text-xs text-muted-foreground">Loại</p>
+            <p className="mt-1 truncate font-medium">
+              {serviceItem.serviceType ?? "Chưa phân loại"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Tồn kho</p>
+            <p className="mt-1 font-medium">{serviceItem.stockQuantity}</p>
+          </div>
+          <div className="col-span-2">
+            <p className="text-xs text-muted-foreground">Giá</p>
+            <p className="mt-1 text-lg font-semibold">
+              {formatCurrency(serviceItem.price)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-auto flex items-center justify-between gap-2">
+        <select
+          aria-label={`Cập nhật trạng thái ${serviceItem.name}`}
+          className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary disabled:opacity-60"
+          disabled={saving}
+          value={serviceItem.status}
+          onChange={(event) =>
+            onStatusChange(
+              serviceItem,
+              event.target.value as ServiceItemStatus
+            )
+          }
+        >
+          {statuses.map((status) => (
+            <option key={status} value={status}>
+              {serviceStatusLabels[status] ?? status}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border bg-background/80 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            title="Sửa dịch vụ"
+            type="button"
+            onClick={() => onEdit(serviceItem)}
+          >
+            <Edit3 className="size-4" />
+          </button>
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 bg-background/80 text-red-200 transition hover:bg-destructive/10"
+            title="Ẩn dịch vụ"
+            type="button"
+            onClick={() => onDeactivate(serviceItem)}
+          >
+            <CircleAlert className="size-4" />
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -890,102 +1030,32 @@ export function FoodServiceManagementPage() {
             />
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-sm">
-              <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Dịch vụ</th>
-                  <th className="px-4 py-3 font-medium">Loại</th>
-                  <th className="px-4 py-3 font-medium">Giá</th>
-                  <th className="px-4 py-3 font-medium">Tồn kho</th>
-                  <th className="px-4 py-3 font-medium">Trạng thái</th>
-                  <th className="px-4 py-3 font-medium">Cập nhật</th>
-                  <th className="px-4 py-3 text-right font-medium">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td
-                      className="px-4 py-10 text-center text-muted-foreground"
-                      colSpan={7}
-                    >
-                      Đang tải dịch vụ
-                    </td>
-                  </tr>
-                )}
-                {!loading && serviceItems.length === 0 && (
-                  <tr>
-                    <td
-                      className="px-4 py-10 text-center text-muted-foreground"
-                      colSpan={7}
-                    >
-                      Không có dịch vụ phù hợp bộ lọc
-                    </td>
-                  </tr>
-                )}
-                {!loading &&
-                  serviceItems.map((serviceItem) => (
-                    <tr className="border-t" key={serviceItem.id}>
-                      <td className="px-4 py-4">
-                        <div className="font-medium">{serviceItem.name}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          ID #{serviceItem.id}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        {serviceItem.serviceType ?? "Chưa phân loại"}
-                      </td>
-                      <td className="px-4 py-4">
-                        {formatCurrency(serviceItem.price)}
-                      </td>
-                      <td className="px-4 py-4">{serviceItem.stockQuantity}</td>
-                      <td className="px-4 py-4">
-                        <ServiceStatusBadge status={serviceItem.status} />
-                      </td>
-                      <td className="px-4 py-4">
-                        <select
-                          className="h-9 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary disabled:opacity-60"
-                          disabled={saving}
-                          value={serviceItem.status}
-                          onChange={(event) =>
-                            changeServiceStatus(
-                              serviceItem,
-                              event.target.value as ServiceItemStatus
-                            )
-                          }
-                        >
-                          {serviceStatuses.map((status) => (
-                            <option key={status} value={status}>
-                              {serviceStatusLabels[status] ?? status}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                            title="Sửa dịch vụ"
-                            type="button"
-                            onClick={() => openEditServiceForm(serviceItem)}
-                          >
-                            <Edit3 className="size-4" />
-                          </button>
-                          <button
-                            className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10"
-                            title="Ẩn dịch vụ"
-                            type="button"
-                            onClick={() => deactivateCurrentService(serviceItem)}
-                          >
-                            <CircleAlert className="size-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+          <div className="p-4">
+            {loading && (
+              <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                Đang tải dịch vụ
+              </div>
+            )}
+            {!loading && serviceItems.length === 0 && (
+              <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                Không có dịch vụ phù hợp bộ lọc
+              </div>
+            )}
+            {!loading && serviceItems.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {serviceItems.map((serviceItem) => (
+                  <ServiceCard
+                    key={serviceItem.id}
+                    saving={saving}
+                    serviceItem={serviceItem}
+                    statuses={serviceStatuses}
+                    onDeactivate={deactivateCurrentService}
+                    onEdit={openEditServiceForm}
+                    onStatusChange={changeServiceStatus}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <Pagination
             loading={loading}
