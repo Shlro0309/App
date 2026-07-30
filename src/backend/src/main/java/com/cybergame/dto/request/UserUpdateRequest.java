@@ -5,21 +5,21 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record UserUpdateRequest(
-        @NotBlank(message = "Username is required")
-        @Size(max = 50, message = "Username must not exceed 50 characters")
+        @NotBlank(message = "Tên đăng nhập là bắt buộc")
+        @Size(max = 50, message = "Tên đăng nhập không được vượt quá 50 ký tự")
         String username,
 
-        @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
+        @Size(min = 8, max = 100, message = "Mật khẩu phải có từ 8 đến 100 ký tự")
         String password,
 
-        @Size(max = 100, message = "Full name must not exceed 100 characters")
+        @Size(max = 100, message = "Họ tên không được vượt quá 100 ký tự")
         String fullName,
 
-        @Size(max = 15, message = "Phone number must not exceed 15 characters")
+        @Size(max = 15, message = "Số điện thoại không được vượt quá 15 ký tự")
         String phoneNumber,
 
-        @Email(message = "Email is invalid")
-        @Size(max = 100, message = "Email must not exceed 100 characters")
+        @Email(message = "Email không hợp lệ")
+        @Size(max = 100, message = "Email không được vượt quá 100 ký tự")
         String email
 ) {
 }

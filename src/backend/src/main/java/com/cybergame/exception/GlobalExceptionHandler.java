@@ -7,6 +7,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -30,7 +31,7 @@ public class GlobalExceptionHandler {
 
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
-                "Validation failed",
+                "Dữ liệu gửi lên không hợp lệ",
                 request.getRequestURI(),
                 fieldErrors
         );
@@ -56,7 +57,7 @@ public class GlobalExceptionHandler {
     ) {
         return buildResponse(
                 HttpStatus.UNAUTHORIZED,
-                "Invalid username or password",
+                "Tên đăng nhập hoặc mật khẩu không đúng",
                 request.getRequestURI(),
                 List.of()
         );
@@ -69,7 +70,20 @@ public class GlobalExceptionHandler {
     ) {
         return buildResponse(
                 HttpStatus.FORBIDDEN,
-                "Access denied",
+                "Bạn không có quyền thực hiện thao tác này",
+                request.getRequestURI(),
+                List.of()
+        );
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupportedException(
+            HttpRequestMethodNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                exception.getMessage(),
                 request.getRequestURI(),
                 List.of()
         );

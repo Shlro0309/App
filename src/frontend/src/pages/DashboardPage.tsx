@@ -57,7 +57,7 @@ function getErrorMessage(error: unknown) {
       return data.message;
     }
     if (error.response?.status === 401 || error.response?.status === 403) {
-      return "Phiên đăng nhập không có quyền truy cập Dashboard.";
+      return "Phiên đăng nhập không có quyền truy cập tổng quan.";
     }
   }
 
@@ -65,7 +65,7 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
 
-  return "Không thể tải dữ liệu Dashboard.";
+  return "Không thể tải dữ liệu tổng quan.";
 }
 
 function formatCurrency(value: number) {
@@ -220,7 +220,7 @@ export function DashboardPage() {
       <section className="mx-auto grid min-h-[50vh] max-w-7xl place-items-center">
         <div className="flex items-center gap-3 text-muted-foreground">
           <RefreshCw className="size-5 animate-spin" />
-          <span>Đang tải Dashboard</span>
+          <span>Đang tải tổng quan</span>
         </div>
       </section>
     );
@@ -230,7 +230,7 @@ export function DashboardPage() {
     <section className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="grid gap-2">
-          <p className="text-sm font-medium text-primary">Dashboard</p>
+          <p className="text-sm font-medium text-primary">Tổng quan</p>
           <h2 className="text-2xl font-semibold">Tổng quan hệ thống</h2>
           {overview ? (
             <p className="text-sm text-muted-foreground">
@@ -306,7 +306,7 @@ export function DashboardPage() {
             <MetricCard
               detail={`${overview.lowStockServices} dịch vụ sắp hết hàng`}
               icon={CheckCircle2}
-              label="Dịch vụ active"
+              label="Dịch vụ đang hoạt động"
               value={overview.activeServices.toString()}
             />
           </div>

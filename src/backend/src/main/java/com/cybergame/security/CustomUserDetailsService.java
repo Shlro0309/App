@@ -21,7 +21,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String username) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy tài khoản: " + username));
 
         String roleName = user.getRole().getName().toUpperCase(Locale.ROOT);
         String authority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;

@@ -111,13 +111,13 @@ public class ReportServiceImpl implements ReportService {
                 : effectiveToDate.minusDays(DEFAULT_REPORT_DAYS - 1L);
 
         if (effectiveFromDate.isAfter(effectiveToDate)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "fromDate must be before or equal to toDate");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc");
         }
 
         long days = Duration.between(effectiveFromDate.atStartOfDay(), effectiveToDate.plusDays(1).atStartOfDay())
                 .toDays();
         if (days > MAX_REPORT_DAYS) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Report range must not exceed 366 days");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Khoảng thời gian báo cáo không được vượt quá 366 ngày");
         }
 
         return new ReportRange(effectiveFromDate, effectiveToDate);

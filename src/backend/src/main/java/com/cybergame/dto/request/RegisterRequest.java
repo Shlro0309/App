@@ -6,22 +6,22 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
-        @NotBlank(message = "Username is required")
-        @Size(min = 4, max = 50, message = "Username must be between 4 and 50 characters")
+        @NotBlank(message = "Tên đăng nhập là bắt buộc")
+        @Size(min = 4, max = 50, message = "Tên đăng nhập phải có từ 4 đến 50 ký tự")
         String username,
 
-        @NotBlank(message = "Password is required")
-        @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
+        @NotBlank(message = "Mật khẩu là bắt buộc")
+        @Size(min = 8, max = 100, message = "Mật khẩu phải có từ 8 đến 100 ký tự")
         String password,
 
-        @Size(max = 100, message = "Full name must not exceed 100 characters")
+        @Size(max = 100, message = "Họ tên không được vượt quá 100 ký tự")
         String fullName,
 
-        @Pattern(regexp = "^[0-9+\\-\\s]{9,15}$", message = "Phone number is invalid")
+        @Pattern(regexp = "^[0-9+\\-\\s]{9,15}$", message = "Số điện thoại không hợp lệ")
         String phoneNumber,
 
-        @Email(message = "Email is invalid")
-        @Size(max = 100, message = "Email must not exceed 100 characters")
+        @Email(message = "Email không hợp lệ")
+        @Size(max = 100, message = "Email không được vượt quá 100 ký tự")
         String email
 ) {
 }

@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 public record PlaySessionStartRequest(
         Integer customerId,
 
-        @NotNull(message = "Machine id is required")
+        @NotNull(message = "Mã máy trạm là bắt buộc")
         Integer machineId
 ) {
 }

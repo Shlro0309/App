@@ -364,7 +364,7 @@ export function ReportPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Báo cáo</p>
-          <h2 className="mt-1 text-2xl font-semibold">Reports</h2>
+          <h2 className="mt-1 text-2xl font-semibold">Báo cáo</h2>
           {overview ? (
             <p className="mt-2 text-sm text-muted-foreground">
               Kỳ {overview.fromDate} đến {overview.toDate} · cập nhật{" "}
@@ -532,7 +532,7 @@ export function ReportPage() {
           <div className="rounded-md border bg-background p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h3 className="font-semibold">Top dịch vụ</h3>
+                <h3 className="font-semibold">Dịch vụ bán chạy</h3>
                 <p className="text-sm text-muted-foreground">
                   Xếp theo doanh thu đơn gọi món hoàn tất
                 </p>
@@ -582,7 +582,7 @@ export function ReportPage() {
           <div className="overflow-hidden rounded-md border bg-background">
             <div className="flex items-center gap-2 border-b p-4">
               <Trophy className="size-5 text-primary" />
-              <h3 className="font-semibold">Top khách hàng</h3>
+              <h3 className="font-semibold">Khách hàng nổi bật</h3>
             </div>
             <TopCustomerTable items={overview.topCustomers} />
           </div>

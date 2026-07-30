@@ -262,7 +262,7 @@ export function CustomerPrebookPage() {
               <Monitor className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-medium text-primary">Cyber Game Booking</p>
+              <p className="text-sm font-medium text-primary">Đặt máy Cyber Game</p>
               <h1 className="text-2xl font-semibold">Đặt máy trước</h1>
             </div>
           </div>

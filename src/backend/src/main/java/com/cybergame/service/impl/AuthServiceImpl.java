@@ -62,11 +62,11 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse register(RegisterRequest request) {
         String username = request.username().trim();
         if (userRepository.existsByUsername(username)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Username already exists");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
         }
 
         Role customerRole = roleRepository.findByNameIgnoreCase(CUSTOMER_ROLE)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer role is not configured"));
+                .orElseThrow(() -> new ResourceNotFoundException("Vai trò khách hàng chưa được cấu hình"));
 
         User user = new User();
         user.setUsername(username);
@@ -112,7 +112,7 @@ public class AuthServiceImpl implements AuthService {
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
             if (!jwtService.isTokenValid(request.refreshToken(), userDetails, TokenType.REFRESH)) {
-                throw new BusinessException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or expired");
+                throw new BusinessException(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn");
             }
 
             return new TokenResponse(
@@ -121,7 +121,7 @@ public class AuthServiceImpl implements AuthService {
                     securityProperties.accessTokenExpirationMinutes()
             );
         } catch (RuntimeException exception) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid or expired");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn");
         }
     }
 
@@ -130,12 +130,12 @@ public class AuthServiceImpl implements AuthService {
     public MessageResponse changePassword(CurrentUser currentUser, ChangePasswordRequest request) {
         User user = getUserByUsername(currentUser.getUsername());
         if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Current password is incorrect");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Mật khẩu hiện tại không đúng");
         }
 
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
-        return new MessageResponse("Password changed successfully");
+        return new MessageResponse("Đổi mật khẩu thành công");
     }
 
     @Override
@@ -174,7 +174,7 @@ public class AuthServiceImpl implements AuthService {
 
     private User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản"));
     }
 
     private String normalizeBlank(String value) {

@@ -72,6 +72,7 @@ export type ServiceItemFormValues = {
 export type FoodOrderFormValues = {
   customerId: string;
   playSessionId: string;
+  paymentMethod: string;
   items: Array<{
     serviceId: string;
     quantity: string;

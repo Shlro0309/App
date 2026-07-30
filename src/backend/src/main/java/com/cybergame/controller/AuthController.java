@@ -54,7 +54,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public MessageResponse logout() {
-        return new MessageResponse("Logged out successfully. Remove tokens on the client.");
+        return new MessageResponse("Đăng xuất thành công");
     }
 
     @GetMapping("/me")

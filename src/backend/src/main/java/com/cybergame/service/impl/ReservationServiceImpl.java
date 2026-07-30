@@ -125,12 +125,12 @@ public class ReservationServiceImpl implements ReservationService {
             ReservationStatusUpdateRequest request
     ) {
         if (!canManageReservations(currentUser)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin or employee can update reservation status");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ admin hoặc nhân viên được cập nhật trạng thái đặt máy");
         }
 
         Reservation reservation = getReservationById(id);
         if (isTerminalStatus(reservation.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Reservation is already closed");
+            throw new BusinessException(HttpStatus.CONFLICT, "Đơn đặt máy đã đóng");
         }
 
         if (request.status() == ReservationStatus.CANCELLED) {
@@ -156,12 +156,12 @@ public class ReservationServiceImpl implements ReservationService {
         validateCanAccess(currentUser, reservation);
 
         if (isTerminalStatus(reservation.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Reservation is already closed");
+            throw new BusinessException(HttpStatus.CONFLICT, "Đơn đặt máy đã đóng");
         }
 
         if (isOverdue(reservation, LocalDateTime.now())) {
             expireReservation(reservation);
-            return new MessageResponse("Reservation has expired");
+            return new MessageResponse("Đơn đặt máy đã hết hạn");
         }
 
         if (!canManageReservations(currentUser)) {
@@ -174,7 +174,7 @@ public class ReservationServiceImpl implements ReservationService {
         reservationRepository.save(reservation);
         publishReservationChanged(reservation, ReservationStatus.CANCELLED.name());
         reservation.getMachines().forEach(machine -> publishMachineChanged(machine, machine.getStatus().name()));
-        return new MessageResponse("Reservation has been cancelled");
+        return new MessageResponse("Đã hủy đơn đặt máy");
     }
 
     @Scheduled(
@@ -217,7 +217,7 @@ public class ReservationServiceImpl implements ReservationService {
                 .stream()
                 .filter(item -> item.getId().equals(machineId))
                 .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Machine not found in reservation"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy máy trong đơn đặt máy"));
 
         return new StationReservationResponse(
                 reservation.getId(),
@@ -238,28 +238,28 @@ public class ReservationServiceImpl implements ReservationService {
 
     private Reservation getReservationById(Integer id) {
         return reservationRepository.findDetailedById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Reservation not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn đặt máy"));
     }
 
     private Customer resolveCustomer(CurrentUser currentUser, Integer requestCustomerId) {
         if (canManageReservations(currentUser)) {
             if (requestCustomerId == null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "Customer id is required");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "Thiếu mã khách hàng");
             }
             return customerRepository.findById(requestCustomerId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng"));
         }
 
         Customer currentCustomer = getCurrentCustomer(currentUser);
         if (requestCustomerId != null && !currentCustomer.getId().equals(requestCustomerId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Customer can only create reservation for own account");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Khách hàng chỉ được đặt máy cho tài khoản của mình");
         }
         return currentCustomer;
     }
 
     private Customer getCurrentCustomer(CurrentUser currentUser) {
         return customerRepository.findByUserId(currentUser.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ khách hàng"));
     }
 
     private Set<Machine> getReservableMachines(Set<Integer> machineIds) {
@@ -267,17 +267,17 @@ public class ReservationServiceImpl implements ReservationService {
         List<Machine> foundMachines = machineRepository.findAllById(normalizedMachineIds);
 
         if (foundMachines.size() != normalizedMachineIds.size()) {
-            throw new ResourceNotFoundException("One or more machines were not found");
+            throw new ResourceNotFoundException("Không tìm thấy một hoặc nhiều máy trạm");
         }
 
         boolean hasUnavailableMachine = foundMachines.stream()
                 .anyMatch(machine -> machine.getStatus() != MachineStatus.AVAILABLE);
         if (hasUnavailableMachine) {
-            throw new BusinessException(HttpStatus.CONFLICT, "One or more machines are not available");
+            throw new BusinessException(HttpStatus.CONFLICT, "Một hoặc nhiều máy trạm không sẵn sàng");
         }
 
         if (reservationRepository.existsActiveReservationForMachines(normalizedMachineIds, ACTIVE_STATUSES)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "One or more machines already have active reservation");
+            throw new BusinessException(HttpStatus.CONFLICT, "Một hoặc nhiều máy trạm đã có đơn đặt máy hoạt động");
         }
 
         return new LinkedHashSet<>(foundMachines);
@@ -295,7 +295,7 @@ public class ReservationServiceImpl implements ReservationService {
         if (currentBalance.compareTo(deposit) < 0) {
             throw new BusinessException(
                     HttpStatus.CONFLICT,
-                    "Customer balance must cover one-hour deposit for selected machines"
+                    "Số dư khách hàng phải đủ tiền đặt cọc 1 giờ cho các máy đã chọn"
             );
         }
 
@@ -330,19 +330,19 @@ public class ReservationServiceImpl implements ReservationService {
 
         Customer currentCustomer = getCurrentCustomer(currentUser);
         if (!reservation.getCustomer().getId().equals(currentCustomer.getId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Reservation does not belong to current customer");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Đơn đặt máy không thuộc khách hàng hiện tại");
         }
     }
 
     private void validateCustomerCancelWindow(Reservation reservation) {
         if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Customer can only cancel confirmed reservation");
+            throw new BusinessException(HttpStatus.CONFLICT, "Khách hàng chỉ được hủy đơn đặt máy đã xác nhận");
         }
 
         if (reservation.getReservedAt().plusMinutes(CUSTOMER_CANCEL_WINDOW_MINUTES).isBefore(LocalDateTime.now())) {
             throw new BusinessException(
                     HttpStatus.CONFLICT,
-                    "Customer can only cancel within 5 minutes after reservation confirmation"
+                    "Khách hàng chỉ được hủy trong 5 phút sau khi đơn đặt máy được xác nhận"
             );
         }
     }
@@ -395,7 +395,7 @@ public class ReservationServiceImpl implements ReservationService {
                 RealtimeEventType.RESERVATION_CHANGED,
                 reservation.getId(),
                 action,
-                "Reservation has changed"
+                "Đơn đặt máy đã thay đổi"
         );
     }
 
@@ -404,7 +404,7 @@ public class ReservationServiceImpl implements ReservationService {
                 RealtimeEventType.MACHINE_STATUS_CHANGED,
                 machine.getId(),
                 action,
-                "Machine status has changed"
+                "Trạng thái máy trạm đã thay đổi"
         );
     }
 }

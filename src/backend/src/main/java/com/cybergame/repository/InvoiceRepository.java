@@ -162,7 +162,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Integer>, JpaS
             "employee.user",
             "playSession",
             "playSession.machine",
-            "order"
+            "order",
+            "order.orderDetails",
+            "order.orderDetails.serviceItem"
     })
     @Query("select invoice from Invoice invoice where invoice.id = :id")
     Optional<Invoice> findDetailedById(@Param("id") Integer id);

@@ -3,10 +3,10 @@ package com.cybergame.dto.request;
 import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(
-        @NotBlank(message = "Username is required")
+        @NotBlank(message = "Tên đăng nhập là bắt buộc")
         String username,
 
-        @NotBlank(message = "Password is required")
+        @NotBlank(message = "Mật khẩu là bắt buộc")
         String password
 ) {
 }

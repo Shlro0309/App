@@ -87,11 +87,11 @@ export function LoginPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-primary">Cyber Game</p>
-              <h1 className="text-2xl font-semibold">Management</h1>
+              <h1 className="text-2xl font-semibold">Quản lý</h1>
             </div>
           </div>
           <div className="grid max-w-xl gap-4">
-            <p className="text-sm font-medium text-primary">Secure Console</p>
+            <p className="text-sm font-medium text-primary">Khu vực vận hành</p>
             <h2 className="text-4xl font-semibold leading-tight">
               Vào hệ thống vận hành phòng máy
             </h2>
@@ -112,7 +112,7 @@ export function LoginPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-primary">Cyber Game</p>
-              <h1 className="text-xl font-semibold">Management</h1>
+              <h1 className="text-xl font-semibold">Quản lý</h1>
             </div>
           </div>
 

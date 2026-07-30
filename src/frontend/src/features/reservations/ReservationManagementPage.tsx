@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
+import { FormModal } from "@/components/FormModal";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   cancelReservation,
@@ -364,6 +365,9 @@ export function ReservationManagementPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [formValues, setFormValues] = useState<ReservationFormValues>(emptyForm);
+  const [statusEditingReservation, setStatusEditingReservation] =
+    useState<Reservation | null>(null);
+  const [statusDraft, setStatusDraft] = useState<ReservationStatus>("PENDING");
 
   const reservations = useMemo(() => page?.content ?? [], [page]);
   const machines = useMemo(() => machinePage?.content ?? [], [machinePage]);
@@ -469,6 +473,18 @@ export function ReservationManagementPage() {
     setFormVisible(false);
   }
 
+  function openStatusForm(reservation: Reservation) {
+    setStatusEditingReservation(reservation);
+    setStatusDraft(reservation.status);
+    setError(null);
+    setSuccess(null);
+  }
+
+  function closeStatusForm() {
+    setStatusEditingReservation(null);
+    setStatusDraft("PENDING");
+  }
+
   async function submitForm() {
     setSaving(true);
     setError(null);
@@ -497,6 +513,7 @@ export function ReservationManagementPage() {
     setSuccess(null);
     try {
       await updateReservationStatus(reservation.id, status);
+      closeStatusForm();
       setSuccess(`Đã cập nhật đặt máy #${reservation.id}.`);
       await Promise.all([
         loadReservations(filters),
@@ -550,7 +567,7 @@ export function ReservationManagementPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Quản lý đặt máy</p>
-          <h2 className="mt-1 text-2xl font-semibold">Reservation</h2>
+          <h2 className="mt-1 text-2xl font-semibold">Đặt máy</h2>
         </div>
         <div className="flex gap-2">
           <button
@@ -644,20 +661,69 @@ export function ReservationManagementPage() {
         </form>
 
         {formVisible && (
-          <ReservationForm
-            loadingMachines={loadingMachines}
-            machineFilters={machineFilters}
-            machinePage={machinePage}
-            machines={machines}
-            saving={saving}
-            values={formValues}
-            onCancel={closeForm}
-            onChange={setFormValues}
-            onMachineFiltersChange={updateMachineFilters}
-            onMachinePageChange={goToMachinePage}
-            onMachineSearch={applyMachineFilters}
-            onSubmit={submitForm}
-          />
+          <FormModal title="Tạo đặt máy" onClose={closeForm}>
+            <ReservationForm
+              loadingMachines={loadingMachines}
+              machineFilters={machineFilters}
+              machinePage={machinePage}
+              machines={machines}
+              saving={saving}
+              values={formValues}
+              onCancel={closeForm}
+              onChange={setFormValues}
+              onMachineFiltersChange={updateMachineFilters}
+              onMachinePageChange={goToMachinePage}
+              onMachineSearch={applyMachineFilters}
+              onSubmit={submitForm}
+            />
+          </FormModal>
+        )}
+
+        {statusEditingReservation && (
+          <FormModal title="Cập nhật trạng thái đặt máy" onClose={closeStatusForm}>
+            <form
+              className="grid gap-4 bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void changeStatus(statusEditingReservation, statusDraft);
+              }}
+            >
+              <label className="grid gap-2 text-sm">
+                <span className="text-muted-foreground">Trạng thái mới</span>
+                <select
+                  className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+                  value={statusDraft}
+                  onChange={(event) =>
+                    setStatusDraft(event.target.value as ReservationStatus)
+                  }
+                >
+                  {statuses.map((status) => (
+                    <option key={status} value={status}>
+                      {statusLabels[status] ?? status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end gap-2">
+                <button
+                  className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+                  disabled={saving}
+                  type="submit"
+                >
+                  <CheckCircle2 className="size-4" />
+                  Lưu
+                </button>
+                <button
+                  className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  type="button"
+                  onClick={closeStatusForm}
+                >
+                  <X className="size-4" />
+                  Hủy
+                </button>
+              </div>
+            </form>
+          </FormModal>
         )}
 
         {error && (
@@ -756,23 +822,15 @@ export function ReservationManagementPage() {
                       <StatusBadge status={reservation.status} />
                     </td>
                     <td className="px-4 py-4">
-                      <select
-                        className="h-9 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary disabled:opacity-60"
+                      <button
+                        className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-60"
                         disabled={saving}
-                        value={reservation.status}
-                        onChange={(event) =>
-                          changeStatus(
-                            reservation,
-                            event.target.value as ReservationStatus
-                          )
-                        }
+                        type="button"
+                        onClick={() => openStatusForm(reservation)}
                       >
-                        {statuses.map((status) => (
-                          <option key={status} value={status}>
-                            {statusLabels[status] ?? status}
-                          </option>
-                        ))}
-                      </select>
+                        <RefreshCw className="size-4" />
+                        Cập nhật
+                      </button>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">

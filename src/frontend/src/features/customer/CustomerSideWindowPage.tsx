@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AxiosError } from "axios";
 import {
   BellRing,
@@ -7,6 +7,7 @@ import {
   Clock3,
   CreditCard,
   History,
+  ImageIcon,
   KeyRound,
   LogOut,
   Monitor,
@@ -53,6 +54,11 @@ const PAYMENT_METHODS = [
   { value: "CASH", label: "Tiền mặt" },
   { value: "BANK_TRANSFER", label: "Chuyển khoản" },
 ];
+const SERVICE_PAYMENT_METHODS = [
+  { value: "CASH", label: "Tiền mặt" },
+  { value: "BANK_TRANSFER", label: "Chuyển khoản" },
+  { value: "ACCOUNT_BALANCE", label: "Trừ số dư tài khoản" },
+];
 
 type TimeWarning = {
   threshold: number;
@@ -82,7 +88,10 @@ function isAlreadyClosedSessionError(error: unknown) {
   const data = error.response?.data as ApiError | undefined;
   return (
     error.response?.status === 409 &&
-    Boolean(data?.message?.toLowerCase().includes("already closed"))
+    Boolean(
+      data?.message?.toLowerCase().includes("already closed") ||
+        data?.message?.toLowerCase().includes("đã đóng")
+    )
   );
 }
 
@@ -175,6 +184,26 @@ function transactionLabel(value: string) {
   return value;
 }
 
+function orderStatusLabel(value: string) {
+  const labels: Record<string, string> = {
+    PENDING: "Chờ xử lý",
+    PREPARING: "Đang chuẩn bị",
+    COMPLETED: "Hoàn tất",
+    CANCELLED: "Đã hủy",
+  };
+  return labels[value] ?? value;
+}
+
+function paymentStatusLabel(value: string) {
+  const labels: Record<string, string> = {
+    PENDING: "Chờ thanh toán",
+    PAID: "Đã thanh toán",
+    CANCELLED: "Đã hủy",
+    REFUNDED: "Đã hoàn tiền",
+  };
+  return labels[value] ?? value;
+}
+
 function OrderList({ orders }: { orders: FoodOrder[] }) {
   if (orders.length === 0) {
     return (
@@ -194,7 +223,7 @@ function OrderList({ orders }: { orders: FoodOrder[] }) {
             <span>{formatCurrency(order.totalAmount)}</span>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {order.status} · {order.items.length} món
+            {orderStatusLabel(order.status)} · {order.items.length} món
           </p>
         </div>
       ))}
@@ -221,7 +250,8 @@ function HistoryList({ payments }: { payments: Payment[] }) {
             <span>{formatCurrency(payment.amount)}</span>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {payment.status} · {new Date(payment.transactionAt).toLocaleString("vi-VN")}
+            {paymentStatusLabel(payment.status)} ·{" "}
+            {new Date(payment.transactionAt).toLocaleString("vi-VN")}
           </p>
         </div>
       ))}
@@ -261,30 +291,111 @@ function TimeWarningToast({
   );
 }
 
+function CustomerServiceImage({
+  imageUrl,
+  alt,
+}: {
+  imageUrl: string | null;
+  alt: string;
+}) {
+  const normalizedImageUrl = imageUrl?.trim() || null;
+
+  return (
+    <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-white/10 bg-slate-950">
+      <div className="absolute inset-0 grid place-items-center text-muted-foreground">
+        <ImageIcon className="size-6" />
+      </div>
+      {normalizedImageUrl ? (
+        <img
+          alt={alt}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+          src={normalizedImageUrl}
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function ServiceOrderModal({
   activeSession,
+  accountBalance,
   services,
   onClose,
   onCreated,
 }: {
   activeSession: PlaySession | null;
+  accountBalance: number;
   services: ServiceItem[];
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: () => void | Promise<void>;
 }) {
-  const [serviceId, setServiceId] = useState<number | null>(null);
-  const [quantity, setQuantity] = useState("1");
+  const [selectedQuantities, setSelectedQuantities] = useState<
+    Record<number, number>
+  >({});
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const selectedService = useMemo(
-    () => services.find((service) => service.id === serviceId) ?? null,
-    [serviceId, services]
+  const availableServices = useMemo(
+    () => services.filter((service) => service.stockQuantity > 0),
+    [services]
   );
+
+  const selectedItems = useMemo(
+    () =>
+      availableServices
+        .map((service) => ({
+          service,
+          quantity: selectedQuantities[service.id] ?? 0,
+        }))
+        .filter((item) => item.quantity > 0),
+    [availableServices, selectedQuantities]
+  );
+
+  const orderTotal = useMemo(
+    () =>
+      selectedItems.reduce(
+        (total, item) => total + item.service.price * item.quantity,
+        0
+      ),
+    [selectedItems]
+  );
+
+  const cannotUseBalance =
+    paymentMethod === "ACCOUNT_BALANCE" && orderTotal > accountBalance;
+
+  function updateSelectedQuantity(service: ServiceItem, quantity: number) {
+    const safeQuantity = Math.max(
+      0,
+      Math.min(service.stockQuantity, Math.floor(quantity) || 0)
+    );
+    setSelectedQuantities((current) => {
+      const next = { ...current };
+      if (safeQuantity <= 0) {
+        delete next[service.id];
+      } else {
+        next[service.id] = safeQuantity;
+      }
+      return next;
+    });
+  }
+
+  function addService(service: ServiceItem) {
+    updateSelectedQuantity(service, (selectedQuantities[service.id] ?? 0) + 1);
+  }
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!activeSession || !serviceId) {
+    if (
+      !activeSession ||
+      selectedItems.length === 0 ||
+      orderTotal <= 0 ||
+      cannotUseBalance
+    ) {
       return;
     }
 
@@ -294,9 +405,13 @@ function ServiceOrderModal({
       await createFoodOrder({
         customerId: "",
         playSessionId: String(activeSession.id),
-        items: [{ serviceId: String(serviceId), quantity }],
+        paymentMethod,
+        items: selectedItems.map((item) => ({
+          serviceId: String(item.service.id),
+          quantity: String(item.quantity),
+        })),
       });
-      onCreated();
+      await onCreated();
       onClose();
     } catch (error) {
       setMessage(getErrorMessage(error));
@@ -308,7 +423,7 @@ function ServiceOrderModal({
   return (
     <div className="fixed inset-0 z-40 grid place-items-end bg-black/60 p-4 backdrop-blur-sm sm:place-items-center">
       <form
-        className="grid max-h-[86vh] w-full max-w-lg gap-4 overflow-hidden rounded-md border bg-background shadow-2xl"
+        className="grid h-[86vh] max-h-[86vh] w-full max-w-4xl grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden rounded-md border bg-background shadow-2xl"
         onSubmit={submitOrder}
       >
         <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
@@ -333,69 +448,161 @@ function ServiceOrderModal({
           </button>
         </div>
 
-        <div className="grid max-h-[48vh] gap-2 overflow-y-auto px-4">
-          {services.length === 0 ? (
-            <div className="grid min-h-32 place-items-center rounded-md border border-dashed bg-muted/20 text-sm text-muted-foreground">
-              Chưa có món đang bán.
-            </div>
-          ) : null}
-          {services.map((service) => {
-            const selected = service.id === serviceId;
-            const outOfStock = service.stockQuantity <= 0;
-            return (
-              <button
-                className={[
-                  "grid gap-2 rounded-md border p-3 text-left transition hover:border-primary",
-                  selected ? "border-primary bg-primary/10 ring-1 ring-primary" : "",
-                  outOfStock ? "cursor-not-allowed opacity-50" : "",
-                ].join(" ")}
-                disabled={outOfStock}
-                key={service.id}
-                type="button"
-                onClick={() => setServiceId(service.id)}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{service.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {service.serviceType ?? "Dịch vụ"} · Còn {service.stockQuantity}
-                    </p>
-                  </div>
-                  <span className="font-semibold text-primary">
-                    {formatCurrency(service.price)}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="grid gap-3 border-t px-4 py-4">
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
-            <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
-              {selectedService
-                ? `${selectedService.name} · ${formatCurrency(selectedService.price)}`
-                : "Chưa chọn món"}
-            </div>
-            <input
-              className="h-10 rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary"
-              disabled={!activeSession}
-              min={1}
-              type="number"
-              value={quantity}
-              onChange={(event) => setQuantity(event.target.value)}
-            />
+        <div className="grid min-h-0 gap-4 px-4 pb-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-h-0 overflow-y-auto pr-1">
+            {availableServices.length === 0 ? (
+              <div className="grid min-h-32 place-items-center rounded-md border border-dashed bg-muted/20 text-sm text-muted-foreground">
+                Chưa có món đang bán.
+              </div>
+            ) : null}
+            {availableServices.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {availableServices.map((service) => {
+                  const quantity = selectedQuantities[service.id] ?? 0;
+                  return (
+                    <button
+                      aria-label={`${service.name} ${formatCurrency(service.price)}`}
+                      className={[
+                        "grid gap-2 rounded-md border bg-muted/10 p-2 text-left transition hover:border-primary",
+                        quantity > 0 ? "border-primary bg-primary/10 ring-1 ring-primary" : "",
+                      ].join(" ")}
+                      key={service.id}
+                      type="button"
+                      onClick={() => addService(service)}
+                    >
+                      <CustomerServiceImage
+                        alt={service.name}
+                        imageUrl={service.imageUrl}
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold">
+                          {service.name}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-primary">
+                          {formatCurrency(service.price)}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
-          <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
-            disabled={!activeSession || saving || !serviceId}
-            type="submit"
-          >
-            <ShoppingBasket className="size-4" />
-            {saving ? "Đang gửi" : "Gửi đơn"}
-          </button>
-          {message ? <p className="text-xs text-red-200">{message}</p> : null}
+          <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 rounded-md border bg-muted/10 p-3">
+            <div>
+              <h3 className="text-sm font-semibold">Món đã chọn</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Chỉnh số lượng trước khi gửi đơn.
+              </p>
+            </div>
+
+            <div className="min-h-0 space-y-2 overflow-y-auto pr-1">
+              {selectedItems.length === 0 ? (
+                <div className="grid min-h-24 place-items-center rounded-md border border-dashed bg-background/40 text-center text-xs text-muted-foreground">
+                  Chưa chọn món
+                </div>
+              ) : null}
+              {selectedItems.map(({ service, quantity }) => (
+                <div
+                  className="grid gap-2 rounded-md border bg-background/70 p-2"
+                  key={service.id}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {service.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCurrency(service.price)}
+                      </p>
+                    </div>
+                    <button
+                      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      title="Bỏ món"
+                      type="button"
+                      onClick={() => updateSelectedQuantity(service, 0)}
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-[32px_1fr_32px] items-center gap-2">
+                    <button
+                      className="inline-flex size-8 items-center justify-center rounded-md border text-sm transition hover:bg-muted"
+                      type="button"
+                      onClick={() => updateSelectedQuantity(service, quantity - 1)}
+                    >
+                      -
+                    </button>
+                    <input
+                      className="h-8 rounded-md border bg-background px-2 text-center text-sm outline-none transition focus:border-primary"
+                      min={1}
+                      type="number"
+                      value={quantity}
+                      onChange={(event) =>
+                        updateSelectedQuantity(service, Number(event.target.value))
+                      }
+                    />
+                    <button
+                      className="inline-flex size-8 items-center justify-center rounded-md border text-sm transition hover:bg-muted"
+                      type="button"
+                      onClick={() => updateSelectedQuantity(service, quantity + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 border-t pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">Tổng tiền</span>
+                <strong className="text-lg text-primary">
+                  {formatCurrency(orderTotal)}
+                </strong>
+              </div>
+
+              <div className="grid gap-2">
+                {SERVICE_PAYMENT_METHODS.map((method) => (
+                  <button
+                    className={[
+                      "h-9 rounded-md border px-3 text-left text-xs font-medium transition hover:border-primary",
+                      paymentMethod === method.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "text-muted-foreground",
+                    ].join(" ")}
+                    key={method.value}
+                    type="button"
+                    onClick={() => setPaymentMethod(method.value)}
+                  >
+                    {method.label}
+                  </button>
+                ))}
+              </div>
+
+              {cannotUseBalance ? (
+                <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  Số dư hiện tại không đủ để thanh toán đơn này.
+                </p>
+              ) : null}
+
+              <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+                disabled={
+                  !activeSession ||
+                  saving ||
+                  selectedItems.length === 0 ||
+                  cannotUseBalance
+                }
+                type="submit"
+              >
+                <ShoppingBasket className="size-4" />
+                {saving ? "Đang gửi" : "Gửi đơn"}
+              </button>
+              {message ? <p className="text-xs text-red-200">{message}</p> : null}
+            </div>
+          </aside>
         </div>
       </form>
     </div>
@@ -584,6 +791,7 @@ export function CustomerSideWindowPage() {
   const logout = useAuthStore((state) => state.logout);
   const refreshCurrentUser = useAuthStore((state) => state.refreshCurrentUser);
   const autoEndingSessionIdRef = useRef<number | null>(null);
+  const knownActiveSessionIdRef = useRef<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState<CustomerTab>("orders");
   const [serviceVisible, setServiceVisible] = useState(false);
@@ -683,6 +891,37 @@ export function CustomerSideWindowPage() {
     () => remainingSeconds(activeSession, user?.balance, now),
     [activeSession, now, user?.balance]
   );
+
+  useEffect(() => {
+    if (activeSession?.id) {
+      knownActiveSessionIdRef.current = activeSession.id;
+    }
+  }, [activeSession?.id]);
+
+  useEffect(() => {
+    if (loading || activeSession || user?.role !== "CUSTOMER") {
+      return;
+    }
+
+    const endedSessionId = knownActiveSessionIdRef.current;
+    if (
+      endedSessionId == null ||
+      autoEndingSessionIdRef.current === endedSessionId
+    ) {
+      return;
+    }
+
+    knownActiveSessionIdRef.current = null;
+    void (async () => {
+      await logout();
+      navigate("/customer/login", {
+        replace: true,
+        state: {
+          message: "Phiên chơi đã kết thúc.",
+        },
+      });
+    })();
+  }, [activeSession, loading, logout, navigate, user?.role]);
 
   useEffect(() => {
     setNotifiedThresholds([]);
@@ -941,9 +1180,13 @@ export function CustomerSideWindowPage() {
         {serviceVisible ? (
           <ServiceOrderModal
             activeSession={activeSession}
+            accountBalance={visibleBalance}
             services={services}
             onClose={() => setServiceVisible(false)}
-            onCreated={() => void loadPanel()}
+            onCreated={() => {
+              void refreshCurrentUser();
+              void loadPanel();
+            }}
           />
         ) : null}
 

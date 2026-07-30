@@ -1,7 +1,6 @@
 package com.cybergame.controller;
 
 import com.cybergame.dto.request.CustomerTopUpRequest;
-import com.cybergame.dto.request.PaymentCheckoutRequest;
 import com.cybergame.dto.request.PaymentPayRequest;
 import com.cybergame.dto.request.PaymentStatusUpdateRequest;
 import com.cybergame.dto.response.MessageResponse;
@@ -15,7 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -59,17 +57,8 @@ public class PaymentController {
         return paymentService.getPayment(currentUser, id);
     }
 
-    @PostMapping("/checkout")
-    @ResponseStatus(HttpStatus.CREATED)
-    public PaymentResponse checkout(
-            @AuthenticationPrincipal CurrentUser currentUser,
-            @Valid @RequestBody PaymentCheckoutRequest request
-    ) {
-        return paymentService.checkout(currentUser, request);
-    }
-
     @PostMapping("/top-up")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @PreAuthorize("hasRole('CUSTOMER')")
     public PaymentResponse topUp(
             @AuthenticationPrincipal CurrentUser currentUser,

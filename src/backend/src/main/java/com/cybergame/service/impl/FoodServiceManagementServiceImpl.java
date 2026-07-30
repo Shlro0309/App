@@ -51,6 +51,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -60,6 +61,9 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
 
     private static final String FOOD_ORDER_TRANSACTION = "FOOD_ORDER";
     private static final String CASH_METHOD = "CASH";
+    private static final String BANK_TRANSFER_METHOD = "BANK_TRANSFER";
+    private static final String ACCOUNT_BALANCE_METHOD = "ACCOUNT_BALANCE";
+    private static final List<String> PAYMENT_METHODS = List.of(CASH_METHOD, BANK_TRANSFER_METHOD, ACCOUNT_BALANCE_METHOD);
 
     private final ServiceItemRepository serviceItemRepository;
     private final CustomerOrderRepository customerOrderRepository;
@@ -96,7 +100,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
     public ServiceItemResponse getServiceItem(CurrentUser currentUser, Integer id) {
         ServiceItem serviceItem = getServiceItemById(id);
         if (!canManageFoodService(currentUser) && serviceItem.getStatus() != ServiceStatus.ACTIVE) {
-            throw new ResourceNotFoundException("Service item not found");
+            throw new ResourceNotFoundException("Không tìm thấy dịch vụ");
         }
         return serviceItemMapper.toResponse(serviceItem);
     }
@@ -106,7 +110,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
     public ServiceItemResponse createServiceItem(CurrentUser currentUser, ServiceItemCreateRequest request) {
         validateCanManageFoodService(currentUser);
         if (serviceItemRepository.existsByNameIgnoreCase(request.name().trim())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Service name already exists");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tên dịch vụ đã tồn tại");
         }
 
         ServiceItem serviceItem = new ServiceItem();
@@ -128,7 +132,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         validateCanManageFoodService(currentUser);
         ServiceItem serviceItem = getServiceItemById(id);
         if (serviceItemRepository.existsByNameIgnoreCaseAndIdNot(request.name().trim(), id)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Service name already exists");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tên dịch vụ đã tồn tại");
         }
 
         serviceItem.setName(request.name().trim());
@@ -165,7 +169,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         serviceItem.setStatus(ServiceStatus.INACTIVE);
         serviceItemRepository.save(serviceItem);
         publishFoodOrderChanged(serviceItem.getId(), "SERVICE_ITEM_INACTIVE");
-        return new MessageResponse("Service item has been deactivated");
+        return new MessageResponse("Đã ngừng kích hoạt dịch vụ");
     }
 
     @Override
@@ -220,10 +224,16 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
                 .map(detail -> detail.getUnitPrice().multiply(BigDecimal.valueOf(detail.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        String paymentMethod = resolvePaymentMethod(currentUser, request.paymentMethod());
+        if (ACCOUNT_BALANCE_METHOD.equals(paymentMethod)) {
+            debitCustomerBalance(customer, totalAmount);
+            savedOrder.setStatus(OrderStatus.PREPARING);
+        }
+
         savedOrder.setTotalAmount(totalAmount);
         orderDetailRepository.saveAll(details);
         customerOrderRepository.save(savedOrder);
-        Invoice savedInvoice = createPendingOrderInvoice(savedOrder);
+        Invoice savedInvoice = createOrderInvoice(savedOrder, paymentMethod);
         publishFoodOrderChanged(savedOrder.getId(), "ORDER_CREATED");
         publishPaymentChanged(savedInvoice.getId(), "FOOD_ORDER_PAYMENT_CREATED");
 
@@ -242,22 +252,19 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         OrderStatus currentStatus = order.getStatus();
         OrderStatus nextStatus = request.status();
 
-        if (currentStatus == OrderStatus.CANCELLED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Cancelled order cannot be reopened");
+        validateOrderStatusTransition(currentStatus, nextStatus);
+        if (currentStatus == nextStatus) {
+            return customerOrderMapper.toResponse(order);
         }
-        if (currentStatus == OrderStatus.COMPLETED && nextStatus != OrderStatus.COMPLETED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Completed order cannot be changed");
+
+        if (nextStatus == OrderStatus.CANCELLED) {
+            CustomerOrder savedOrder = cancelOrderAndClosePayment(order);
+            publishFoodOrderChanged(savedOrder.getId(), savedOrder.getStatus().name());
+            return customerOrderMapper.toResponse(savedOrder);
         }
-        if (nextStatus == OrderStatus.CANCELLED && currentStatus != OrderStatus.COMPLETED) {
-            restockOrder(order);
-        }
-        validatePaymentBeforeProcessing(order, nextStatus);
 
         order.setStatus(nextStatus);
         CustomerOrder savedOrder = customerOrderRepository.save(order);
-        if (nextStatus == OrderStatus.CANCELLED) {
-            cancelPendingOrderInvoice(savedOrder);
-        }
         publishFoodOrderChanged(savedOrder.getId(), savedOrder.getStatus().name());
         return customerOrderMapper.toResponse(savedOrder);
     }
@@ -269,18 +276,15 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         validateCanAccessOrder(currentUser, order);
 
         if (order.getStatus() == OrderStatus.CANCELLED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Order is already cancelled");
+            throw new BusinessException(HttpStatus.CONFLICT, "Đơn gọi món đã bị hủy");
         }
         if (order.getStatus() == OrderStatus.COMPLETED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Completed order cannot be cancelled");
+            throw new BusinessException(HttpStatus.CONFLICT, "Không thể hủy đơn gọi món đã hoàn tất");
         }
 
-        restockOrder(order);
-        order.setStatus(OrderStatus.CANCELLED);
-        CustomerOrder savedOrder = customerOrderRepository.save(order);
-        cancelPendingOrderInvoice(savedOrder);
-        publishFoodOrderChanged(order.getId(), OrderStatus.CANCELLED.name());
-        return new MessageResponse("Order has been cancelled");
+        CustomerOrder savedOrder = cancelOrderAndClosePayment(order);
+        publishFoodOrderChanged(savedOrder.getId(), OrderStatus.CANCELLED.name());
+        return new MessageResponse("Đã hủy đơn gọi món");
     }
 
     @Override
@@ -299,33 +303,33 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
 
     private ServiceItem getServiceItemById(Integer id) {
         return serviceItemRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Service item not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ"));
     }
 
     private CustomerOrder getOrderById(Integer id) {
         return customerOrderRepository.findDetailedById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn gọi món"));
     }
 
     private Customer resolveCustomer(CurrentUser currentUser, Integer requestCustomerId) {
         if (canManageFoodService(currentUser)) {
             if (requestCustomerId == null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "Customer id is required");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "Thiếu mã khách hàng");
             }
             return customerRepository.findById(requestCustomerId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng"));
         }
 
         Customer currentCustomer = getCurrentCustomer(currentUser);
         if (requestCustomerId != null && !currentCustomer.getId().equals(requestCustomerId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Customer can only create own order");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Khách hàng chỉ được tạo đơn gọi món cho tài khoản của mình");
         }
         return currentCustomer;
     }
 
     private Customer getCurrentCustomer(CurrentUser currentUser) {
         return customerRepository.findByUserId(currentUser.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ khách hàng"));
     }
 
     private Optional<Employee> resolveCurrentEmployee(CurrentUser currentUser) {
@@ -341,12 +345,12 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         }
 
         PlaySession playSession = playSessionRepository.findDetailedById(playSessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Play session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiên chơi"));
         if (!playSession.getCustomer().getId().equals(customer.getId())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Play session does not belong to selected customer");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Phiên chơi không thuộc khách hàng đã chọn");
         }
         if (playSession.getStatus() != PlaySessionStatus.ACTIVE) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Food order can only be attached to active play session");
+            throw new BusinessException(HttpStatus.CONFLICT, "Đơn gọi món chỉ được gắn với phiên chơi đang hoạt động");
         }
         return playSession;
     }
@@ -360,7 +364,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
     private List<OrderDetail> createOrderDetails(CustomerOrder order, Map<Integer, Integer> quantitiesByService) {
         List<ServiceItem> serviceItems = serviceItemRepository.findAllByIdForUpdate(quantitiesByService.keySet());
         if (serviceItems.size() != quantitiesByService.size()) {
-            throw new ResourceNotFoundException("One or more service items were not found");
+            throw new ResourceNotFoundException("Không tìm thấy một hoặc nhiều dịch vụ");
         }
 
         return serviceItems.stream()
@@ -382,10 +386,10 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
 
     private void validateOrderableServiceItem(ServiceItem serviceItem, Integer quantity) {
         if (serviceItem.getStatus() != ServiceStatus.ACTIVE) {
-            throw new BusinessException(HttpStatus.CONFLICT, "One or more service items are inactive");
+            throw new BusinessException(HttpStatus.CONFLICT, "Một hoặc nhiều dịch vụ đang ngừng bán");
         }
         if (serviceItem.getStockQuantity() < quantity) {
-            throw new BusinessException(HttpStatus.CONFLICT, "One or more service items do not have enough stock");
+            throw new BusinessException(HttpStatus.CONFLICT, "Một hoặc nhiều dịch vụ không đủ số lượng tồn");
         }
     }
 
@@ -398,16 +402,24 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
                 order.getOrderDetails()
                         .stream()
                         .map(OrderDetail::getServiceItem)
-                        .toList()
+                .toList()
         );
     }
 
-    private Invoice createPendingOrderInvoice(CustomerOrder order) {
+    private CustomerOrder cancelOrderAndClosePayment(CustomerOrder order) {
+        restockOrder(order);
+        order.setStatus(OrderStatus.CANCELLED);
+        CustomerOrder savedOrder = customerOrderRepository.save(order);
+        closeOrderInvoiceAfterCancellation(savedOrder);
+        return savedOrder;
+    }
+
+    private Invoice createOrderInvoice(CustomerOrder order, String paymentMethod) {
         if (order.getTotalAmount() == null || order.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Invoice amount must be greater than 0");
+            throw new BusinessException(HttpStatus.CONFLICT, "Số tiền hóa đơn phải lớn hơn 0");
         }
         if (invoiceRepository.existsActiveOrderInvoice(order.getId())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Order already has invoice");
+            throw new BusinessException(HttpStatus.CONFLICT, "Đơn gọi món đã có hóa đơn");
         }
 
         Invoice invoice = new Invoice();
@@ -417,36 +429,83 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
         invoice.setOrder(order);
         invoice.setTransactionType(FOOD_ORDER_TRANSACTION);
         invoice.setAmount(order.getTotalAmount());
-        invoice.setPaymentMethod(CASH_METHOD);
-        invoice.setStatus(InvoiceStatus.PENDING);
+        invoice.setPaymentMethod(paymentMethod);
+        invoice.setStatus(ACCOUNT_BALANCE_METHOD.equals(paymentMethod) ? InvoiceStatus.PAID : InvoiceStatus.PENDING);
         invoice.setTransactionAt(LocalDateTime.now());
 
         return invoiceRepository.save(invoice);
     }
 
-    private void cancelPendingOrderInvoice(CustomerOrder order) {
-        Invoice invoice = order.getInvoice();
-        if (invoice == null || invoice.getStatus() != InvoiceStatus.PENDING) {
-            return;
+    private String resolvePaymentMethod(CurrentUser currentUser, String paymentMethod) {
+        String normalizedPaymentMethod = toNullableText(paymentMethod);
+        if (normalizedPaymentMethod == null) {
+            if (!canManageFoodService(currentUser)) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "Khách hàng cần chọn phương thức thanh toán cho đơn gọi món");
+            }
+            return CASH_METHOD;
         }
-
-        invoice.setStatus(InvoiceStatus.CANCELLED);
-        Invoice savedInvoice = invoiceRepository.save(invoice);
-        publishPaymentChanged(savedInvoice.getId(), InvoiceStatus.CANCELLED.name());
+        normalizedPaymentMethod = normalizedPaymentMethod.toUpperCase(Locale.ROOT);
+        if (!PAYMENT_METHODS.contains(normalizedPaymentMethod)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Phương thức thanh toán không được hỗ trợ cho đơn dịch vụ");
+        }
+        return normalizedPaymentMethod;
     }
 
-    private void validatePaymentBeforeProcessing(CustomerOrder order, OrderStatus nextStatus) {
-        if (order.getStatus() != OrderStatus.PENDING || nextStatus == OrderStatus.PENDING || nextStatus == OrderStatus.CANCELLED) {
+    private void debitCustomerBalance(Customer customer, BigDecimal amount) {
+        BigDecimal currentBalance = normalizeAmount(customer.getBalance());
+        BigDecimal normalizedAmount = normalizeAmount(amount);
+        if (currentBalance.compareTo(normalizedAmount) < 0) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Số dư khách hàng không đủ để thanh toán đơn gọi món này");
+        }
+        customer.setBalance(currentBalance.subtract(normalizedAmount));
+        customerRepository.save(customer);
+    }
+
+    private BigDecimal normalizeAmount(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount;
+    }
+
+    private void creditCustomerBalance(Customer customer, BigDecimal amount) {
+        customer.setBalance(normalizeAmount(customer.getBalance()).add(normalizeAmount(amount)));
+        customerRepository.save(customer);
+    }
+
+    private void closeOrderInvoiceAfterCancellation(CustomerOrder order) {
+        Invoice invoice = order.getInvoice();
+        if (invoice == null
+                || invoice.getStatus() == InvoiceStatus.CANCELLED
+                || invoice.getStatus() == InvoiceStatus.REFUNDED) {
             return;
         }
 
-        Invoice invoice = order.getInvoice();
-        if (invoice == null || invoice.getStatus() != InvoiceStatus.PAID) {
-            throw new BusinessException(
-                    HttpStatus.CONFLICT,
-                    "Food order can only be processed after its payment is paid"
-            );
+        if (invoice.getStatus() == InvoiceStatus.PENDING) {
+            invoice.setStatus(InvoiceStatus.CANCELLED);
+        } else if (invoice.getStatus() == InvoiceStatus.PAID) {
+            if (ACCOUNT_BALANCE_METHOD.equals(invoice.getPaymentMethod())) {
+                creditCustomerBalance(invoice.getCustomer(), invoice.getAmount());
+            }
+            invoice.setStatus(InvoiceStatus.REFUNDED);
         }
+        invoice.setTransactionAt(LocalDateTime.now());
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        publishPaymentChanged(savedInvoice.getId(), savedInvoice.getStatus().name());
+    }
+
+    private void validateOrderStatusTransition(OrderStatus currentStatus, OrderStatus nextStatus) {
+        if (currentStatus == nextStatus) {
+            return;
+        }
+        if (currentStatus == OrderStatus.PENDING && nextStatus == OrderStatus.CANCELLED) {
+            return;
+        }
+        if (currentStatus == OrderStatus.PREPARING
+                && (nextStatus == OrderStatus.COMPLETED || nextStatus == OrderStatus.CANCELLED)) {
+            return;
+        }
+        if (currentStatus == OrderStatus.CANCELLED || currentStatus == OrderStatus.COMPLETED) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Đơn gọi món đã đóng không thể thay đổi");
+        }
+        throw new BusinessException(HttpStatus.CONFLICT, "Không thể chuyển đơn gọi món sang trạng thái này");
     }
 
     private void validateCanAccessOrder(CurrentUser currentUser, CustomerOrder order) {
@@ -456,13 +515,13 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
 
         Customer currentCustomer = getCurrentCustomer(currentUser);
         if (!order.getCustomer().getId().equals(currentCustomer.getId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Order does not belong to current customer");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Đơn gọi món không thuộc khách hàng hiện tại");
         }
     }
 
     private void validateCanManageFoodService(CurrentUser currentUser) {
         if (!canManageFoodService(currentUser)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin or employee can manage food service");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ admin hoặc nhân viên được quản lý dịch vụ");
         }
     }
 
@@ -485,7 +544,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
                 RealtimeEventType.FOOD_ORDER_CHANGED,
                 entityId,
                 action,
-                "Food service data has changed"
+                "Dữ liệu dịch vụ đã thay đổi"
         );
     }
 
@@ -494,7 +553,7 @@ public class FoodServiceManagementServiceImpl implements FoodServiceManagementSe
                 RealtimeEventType.PAYMENT_CHANGED,
                 entityId,
                 action,
-                "Payment data has changed"
+                "Dữ liệu thanh toán đã thay đổi"
         );
     }
 }

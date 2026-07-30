@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
+import { FormModal } from "@/components/FormModal";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   cancelPlaySession,
@@ -479,7 +480,7 @@ export function PlaySessionManagementPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Quản lý phiên chơi</p>
-          <h2 className="mt-1 text-2xl font-semibold">Play Session</h2>
+          <h2 className="mt-1 text-2xl font-semibold">Phiên chơi</h2>
         </div>
         <div className="flex gap-2">
           <button
@@ -584,17 +585,19 @@ export function PlaySessionManagementPage() {
         </form>
 
         {formVisible && (
-          <StartForm
-            directValues={directValues}
-            mode={formMode}
-            reservationValues={reservationValues}
-            saving={saving}
-            onCancel={closeForm}
-            onDirectChange={setDirectValues}
-            onModeChange={setFormMode}
-            onReservationChange={setReservationValues}
-            onSubmit={submitForm}
-          />
+          <FormModal title="Mở phiên chơi" onClose={closeForm}>
+            <StartForm
+              directValues={directValues}
+              mode={formMode}
+              reservationValues={reservationValues}
+              saving={saving}
+              onCancel={closeForm}
+              onDirectChange={setDirectValues}
+              onModeChange={setFormMode}
+              onReservationChange={setReservationValues}
+              onSubmit={submitForm}
+            />
+          </FormModal>
         )}
 
         {error && (

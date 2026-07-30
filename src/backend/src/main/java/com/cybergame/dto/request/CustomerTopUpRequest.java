@@ -8,12 +8,12 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public record CustomerTopUpRequest(
-        @NotNull(message = "Amount is required")
-        @DecimalMin(value = "1000.00", message = "Amount must be at least 1000")
-        @Digits(integer = 10, fraction = 2, message = "Amount format is invalid")
+        @NotNull(message = "Số tiền là bắt buộc")
+        @DecimalMin(value = "1000.00", message = "Số tiền phải tối thiểu 1000")
+        @Digits(integer = 10, fraction = 2, message = "Định dạng số tiền không hợp lệ")
         BigDecimal amount,
 
-        @Size(max = 30, message = "Payment method must have at most 30 characters")
+        @Size(max = 30, message = "Phương thức thanh toán không được vượt quá 30 ký tự")
         String paymentMethod
 ) {
 }

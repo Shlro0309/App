@@ -9,7 +9,7 @@ async function expectLoginFields(page: Page) {
   await expect(password).toBeVisible();
   await expect(submit).toBeDisabled();
 
-  await username.fill("demo_user");
+  await username.fill("mock_user");
   await password.fill("password123");
 
   await expect(submit).toBeEnabled();
@@ -108,8 +108,8 @@ test.describe("login surfaces", () => {
             userId: 10,
             customerId: 20,
             employeeId: null,
-            username: "zero_customer",
-            fullName: "Zero Customer",
+            username: "mock_zero_balance_customer",
+            fullName: "Mock Zero Balance Customer",
             email: null,
             phoneNumber: null,
             role: "CUSTOMER",
@@ -121,7 +121,7 @@ test.describe("login surfaces", () => {
     });
 
     await page.goto("/customer/login?machineId=1");
-    await page.locator('input[autocomplete="username"]').fill("zero_customer");
+    await page.locator('input[autocomplete="username"]').fill("mock_zero_balance_customer");
     await page.locator('input[autocomplete="current-password"]').fill("password123");
     await page.locator('button[type="submit"]').click();
 

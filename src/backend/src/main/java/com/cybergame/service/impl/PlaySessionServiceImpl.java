@@ -107,17 +107,17 @@ public class PlaySessionServiceImpl implements PlaySessionService {
             PlaySessionReservationStartRequest request
     ) {
         Reservation reservation = reservationRepository.findDetailedById(request.reservationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Reservation not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn đặt máy"));
         validateCanUseReservation(currentUser, reservation);
 
         if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Reservation must be confirmed before check-in");
+            throw new BusinessException(HttpStatus.CONFLICT, "Đơn đặt máy phải được xác nhận trước khi check-in");
         }
         if (reservation.getExpiresAt().isBefore(LocalDateTime.now())) {
             reservation.setStatus(ReservationStatus.EXPIRED);
             releaseReservedMachines(reservation.getMachines());
             reservationRepository.save(reservation);
-            throw new BusinessException(HttpStatus.CONFLICT, "Reservation has expired");
+            throw new BusinessException(HttpStatus.CONFLICT, "Đơn đặt máy đã hết hạn");
         }
         Set<Integer> normalizedMachineIds = new LinkedHashSet<>(request.machineIds());
         List<Machine> selectedMachines = reservation.getMachines()
@@ -126,7 +126,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
                 .toList();
 
         if (selectedMachines.size() != normalizedMachineIds.size()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "One or more machines do not belong to reservation");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Một hoặc nhiều máy trạm không thuộc đơn đặt máy");
         }
 
         selectedMachines.forEach(machine -> validateCanStartMachine(machine, Set.of(MachineStatus.RESERVED)));
@@ -160,7 +160,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         validateCanManageOrOwnActiveSession(currentUser, playSession);
 
         if (playSession.getStatus() != PlaySessionStatus.ACTIVE) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Play session is already closed");
+            throw new BusinessException(HttpStatus.CONFLICT, "Phiên chơi đã đóng");
         }
 
         completePlaySession(playSession, LocalDateTime.now());
@@ -196,12 +196,12 @@ public class PlaySessionServiceImpl implements PlaySessionService {
     @Transactional
     public MessageResponse cancelSession(CurrentUser currentUser, Integer id) {
         if (!canManagePlaySessions(currentUser)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin or employee can cancel play session");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ admin hoặc nhân viên được hủy phiên chơi");
         }
 
         PlaySession playSession = getPlaySessionById(id);
         if (playSession.getStatus() != PlaySessionStatus.ACTIVE) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Play session is already closed");
+            throw new BusinessException(HttpStatus.CONFLICT, "Phiên chơi đã đóng");
         }
 
         playSession.setEndedAt(LocalDateTime.now());
@@ -212,7 +212,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         publishPlaySessionChanged(playSession, PlaySessionStatus.CANCELLED.name());
         publishMachineChanged(playSession.getMachine(), MachineStatus.AVAILABLE.name());
 
-        return new MessageResponse("Play session has been cancelled");
+        return new MessageResponse("Đã hủy phiên chơi");
     }
 
     @Override
@@ -224,41 +224,41 @@ public class PlaySessionServiceImpl implements PlaySessionService {
 
     private PlaySession getPlaySessionById(Integer id) {
         return playSessionRepository.findDetailedById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Play session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phiên chơi"));
     }
 
     private Customer resolveCustomer(CurrentUser currentUser, Integer requestCustomerId) {
         if (canManagePlaySessions(currentUser)) {
             if (requestCustomerId == null) {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "Customer id is required");
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "Thiếu mã khách hàng");
             }
             return customerRepository.findById(requestCustomerId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng"));
         }
 
         Customer currentCustomer = getCurrentCustomer(currentUser);
         if (requestCustomerId != null && !currentCustomer.getId().equals(requestCustomerId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Customer can only start own play session");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Khách hàng chỉ được mở phiên chơi cho tài khoản của mình");
         }
         return currentCustomer;
     }
 
     private Customer getCurrentCustomer(CurrentUser currentUser) {
         return customerRepository.findByUserId(currentUser.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ khách hàng"));
     }
 
     private Machine getMachine(Integer machineId) {
         return machineRepository.findDetailedById(machineId)
-                .orElseThrow(() -> new ResourceNotFoundException("Machine not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy máy trạm"));
     }
 
     private void validateCanStartMachine(Machine machine, Set<MachineStatus> allowedStatuses) {
         if (!allowedStatuses.contains(machine.getStatus())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Machine is not ready to start play session");
+            throw new BusinessException(HttpStatus.CONFLICT, "Máy trạm chưa sẵn sàng để mở phiên chơi");
         }
         if (playSessionRepository.existsByMachineIdAndStatus(machine.getId(), PlaySessionStatus.ACTIVE)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Machine already has active play session");
+            throw new BusinessException(HttpStatus.CONFLICT, "Máy trạm đang có phiên chơi hoạt động");
         }
     }
 
@@ -266,7 +266,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
         if (normalizeAmount(customer.getBalance()).compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(
                     HttpStatus.CONFLICT,
-                    "Customer balance is depleted. Please top up before starting a play session"
+                    "Số dư đã hết. Vui lòng nạp thêm tiền trước khi bắt đầu phiên chơi"
             );
         }
     }
@@ -401,7 +401,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
 
         Customer currentCustomer = getCurrentCustomer(currentUser);
         if (!reservation.getCustomer().getId().equals(currentCustomer.getId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Reservation does not belong to current customer");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Đơn đặt máy không thuộc khách hàng hiện tại");
         }
     }
 
@@ -412,7 +412,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
 
         Customer currentCustomer = getCurrentCustomer(currentUser);
         if (!playSession.getCustomer().getId().equals(currentCustomer.getId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Play session does not belong to current customer");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Phiên chơi không thuộc khách hàng hiện tại");
         }
     }
 
@@ -436,7 +436,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
                 RealtimeEventType.PLAY_SESSION_CHANGED,
                 playSession.getId(),
                 action,
-                "Play session has changed"
+                "Phiên chơi đã thay đổi"
         );
     }
 
@@ -445,7 +445,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
                 RealtimeEventType.MACHINE_STATUS_CHANGED,
                 machine.getId(),
                 action,
-                "Machine status has changed"
+                "Trạng thái máy trạm đã thay đổi"
         );
     }
 
@@ -454,7 +454,7 @@ public class PlaySessionServiceImpl implements PlaySessionService {
                 RealtimeEventType.RESERVATION_CHANGED,
                 reservation.getId(),
                 action,
-                "Reservation has changed"
+                "Đơn đặt máy đã thay đổi"
         );
     }
 }

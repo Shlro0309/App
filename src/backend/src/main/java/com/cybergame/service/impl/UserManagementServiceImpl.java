@@ -163,7 +163,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         User user = getUserById(id);
         validateCanAccessUser(currentUser, user);
         if (user.getCustomer() == null) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Only customer account balance can be updated");
+            throw new BusinessException(HttpStatus.CONFLICT, "Chỉ có thể cập nhật số dư của tài khoản khách hàng");
         }
 
         user.getCustomer().setBalance(request.balance());
@@ -175,15 +175,15 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional
     public MessageResponse deleteUser(CurrentUser currentUser, Integer id) {
         if (!canManageAllUsers(currentUser)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin can delete accounts");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ admin được xóa tài khoản");
         }
         if (currentUser.id().equals(id)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Current signed-in account cannot be deleted");
+            throw new BusinessException(HttpStatus.CONFLICT, "Không thể xóa tài khoản đang đăng nhập");
         }
 
         User user = getUserById(id);
         hardDeleteUser(user);
-        return new MessageResponse("User account has been deleted");
+        return new MessageResponse("Đã xóa tài khoản");
     }
 
     @Override
@@ -198,12 +198,12 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private User getUserById(Integer id) {
         return userRepository.findDetailedById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản"));
     }
 
     private Role getRole(String roleName) {
         return roleRepository.findByNameIgnoreCase(roleName.trim().toUpperCase(Locale.ROOT))
-                .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vai trò"));
     }
 
     private void validateUniqueUsername(Integer currentUserId, String username) {
@@ -211,7 +211,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                 ? userRepository.existsByUsername(username)
                 : userRepository.existsByUsernameAndIdNot(username, currentUserId);
         if (exists) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Username already exists");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại");
         }
     }
 
@@ -236,7 +236,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .setParameter("customerId", customerId)
                 .getSingleResult();
         if (count.longValue() > 0) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Customer account has active play session");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tài khoản khách hàng đang có phiên chơi hoạt động");
         }
     }
 
@@ -283,7 +283,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         boolean exists = userRepository.existsByEmail(normalizedEmail);
         if (exists && (currentUserId == null || !normalizedEmail.equalsIgnoreCase(getUserById(currentUserId).getEmail()))) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Email already exists");
+            throw new BusinessException(HttpStatus.CONFLICT, "Email đã tồn tại");
         }
     }
 
@@ -321,7 +321,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (canManageCustomerUsers(currentUser) && user.getRole() != null && CUSTOMER_ROLE.equalsIgnoreCase(user.getRole().getName())) {
             return;
         }
-        throw new BusinessException(HttpStatus.FORBIDDEN, "Employee can only manage customer accounts");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "Nhân viên chỉ được quản lý tài khoản khách hàng");
     }
 
     private void validateCanUseRole(CurrentUser currentUser, Role role) {
@@ -331,12 +331,12 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (canManageCustomerUsers(currentUser) && isCustomerRole(role)) {
             return;
         }
-        throw new BusinessException(HttpStatus.FORBIDDEN, "Employee can only create customer accounts");
+        throw new BusinessException(HttpStatus.FORBIDDEN, "Nhân viên chỉ được tạo tài khoản khách hàng");
     }
 
     private void validateCanManageRoles(CurrentUser currentUser) {
         if (!canManageAllUsers(currentUser)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin can update account role");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ admin được cập nhật vai trò tài khoản");
         }
     }
 

@@ -5,10 +5,10 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record PaymentStatusUpdateRequest(
-        @NotNull(message = "Status is required")
+        @NotNull(message = "Trạng thái là bắt buộc")
         InvoiceStatus status,
 
-        @Size(max = 30, message = "Payment method must have at most 30 characters")
+        @Size(max = 30, message = "Phương thức thanh toán không được vượt quá 30 ký tự")
         String paymentMethod
 ) {
 }

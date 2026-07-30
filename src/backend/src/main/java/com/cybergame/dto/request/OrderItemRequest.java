@@ -4,11 +4,11 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 public record OrderItemRequest(
-        @NotNull(message = "Service id is required")
+        @NotNull(message = "Mã dịch vụ là bắt buộc")
         Integer serviceId,
 
-        @NotNull(message = "Quantity is required")
-        @Min(value = 1, message = "Quantity must be greater than or equal to 1")
+        @NotNull(message = "Số lượng là bắt buộc")
+        @Min(value = 1, message = "Số lượng phải lớn hơn hoặc bằng 1")
         Integer quantity
 ) {
 }

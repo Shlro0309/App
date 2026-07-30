@@ -13,15 +13,15 @@ import java.util.Set;
 public record ReservationCreateRequest(
         Integer customerId,
 
-        @NotNull(message = "Expiration time is required")
-        @Future(message = "Expiration time must be in the future")
+        @NotNull(message = "Thời gian hết hạn là bắt buộc")
+        @Future(message = "Thời gian hết hạn phải ở tương lai")
         LocalDateTime expiresAt,
 
-        @DecimalMin(value = "0.00", message = "Deposit must be greater than or equal to 0")
-        @Digits(integer = 8, fraction = 2, message = "Deposit must have up to 8 integer digits and 2 fraction digits")
+        @DecimalMin(value = "0.00", message = "Tiền đặt cọc phải lớn hơn hoặc bằng 0")
+        @Digits(integer = 8, fraction = 2, message = "Tiền đặt cọc chỉ được có tối đa 8 chữ số nguyên và 2 chữ số thập phân")
         BigDecimal deposit,
 
-        @NotEmpty(message = "At least one machine is required")
-        Set<@NotNull(message = "Machine id is required") Integer> machineIds
+        @NotEmpty(message = "Cần chọn ít nhất một máy trạm")
+        Set<@NotNull(message = "Mã máy trạm là bắt buộc") Integer> machineIds
 ) {
 }

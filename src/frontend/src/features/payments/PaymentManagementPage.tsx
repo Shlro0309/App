@@ -11,15 +11,12 @@ import {
   Search,
   ShieldAlert,
   WalletCards,
-  X,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   cancelPayment,
-  checkoutPayment,
   getPayments,
-  getPaymentMethods,
   getPaymentStatuses,
   payPayment,
   updatePaymentStatus,
@@ -27,7 +24,6 @@ import {
 import type {
   PageResponse,
   Payment,
-  PaymentCheckoutValues,
   PaymentFilters,
   PaymentStatus,
 } from "./types";
@@ -40,13 +36,6 @@ const defaultFilters: PaymentFilters = {
   status: "",
   page: 0,
   size: 10,
-};
-
-const emptyCheckoutForm: PaymentCheckoutValues = {
-  customerId: "",
-  playSessionId: "",
-  orderId: "",
-  paymentMethod: "CASH",
 };
 
 const statusLabels: Record<PaymentStatus, string> = {
@@ -128,107 +117,6 @@ function StatusBadge({ status }: { status: PaymentStatus }) {
   );
 }
 
-type CheckoutFormProps = {
-  methods: string[];
-  saving: boolean;
-  values: PaymentCheckoutValues;
-  onCancel: () => void;
-  onChange: (values: PaymentCheckoutValues) => void;
-  onSubmit: () => void;
-};
-
-function CheckoutForm({
-  methods,
-  saving,
-  values,
-  onCancel,
-  onChange,
-  onSubmit,
-}: CheckoutFormProps) {
-  const hasSource =
-    values.playSessionId.trim().length > 0 || values.orderId.trim().length > 0;
-
-  function updateField(field: keyof PaymentCheckoutValues, value: string) {
-    onChange({ ...values, [field]: value });
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    onSubmit();
-  }
-
-  return (
-    <form
-      className="grid gap-4 border-b bg-muted/20 p-4 lg:grid-cols-[160px_160px_160px_180px_auto]"
-      onSubmit={handleSubmit}
-    >
-      <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Mã khách hàng</span>
-        <input
-          className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
-          min={1}
-          placeholder="Tự lấy từ nguồn"
-          type="number"
-          value={values.customerId}
-          onChange={(event) => updateField("customerId", event.target.value)}
-        />
-      </label>
-      <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Mã phiên chơi</span>
-        <input
-          className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
-          min={1}
-          type="number"
-          value={values.playSessionId}
-          onChange={(event) => updateField("playSessionId", event.target.value)}
-        />
-      </label>
-      <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Mã đơn gọi món</span>
-        <input
-          className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
-          min={1}
-          type="number"
-          value={values.orderId}
-          onChange={(event) => updateField("orderId", event.target.value)}
-        />
-      </label>
-      <label className="grid gap-2 text-sm">
-        <span className="text-muted-foreground">Phương thức</span>
-        <select
-          className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
-          value={values.paymentMethod}
-          onChange={(event) => updateField("paymentMethod", event.target.value)}
-        >
-          {methods.map((method) => (
-            <option key={method} value={method}>
-              {methodLabels[method] ?? method}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="flex items-end gap-2">
-        <button
-          className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
-          disabled={saving || !hasSource}
-          type="submit"
-        >
-          <CheckCircle2 className="size-4" />
-          {saving ? "Đang tạo" : "Tạo hóa đơn"}
-        </button>
-        <button
-          className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          type="button"
-          onClick={onCancel}
-        >
-          <X className="size-4" />
-          Hủy
-        </button>
-      </div>
-    </form>
-  );
-}
-
 export function PaymentManagementPage() {
   const [statuses, setStatuses] = useState<PaymentStatus[]>([
     "PENDING",
@@ -236,21 +124,12 @@ export function PaymentManagementPage() {
     "CANCELLED",
     "REFUNDED",
   ]);
-  const [methods, setMethods] = useState<string[]>([
-    "CASH",
-    "BANK_TRANSFER",
-    "ACCOUNT_BALANCE",
-  ]);
   const [filters, setFilters] = useState<PaymentFilters>(defaultFilters);
   const [page, setPage] = useState<PageResponse<Payment> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [checkoutVisible, setCheckoutVisible] = useState(false);
-  const [checkoutValues, setCheckoutValues] =
-    useState<PaymentCheckoutValues>(emptyCheckoutForm);
-  const [selectedMethod, setSelectedMethod] = useState("CASH");
 
   const payments = useMemo(() => page?.content ?? [], [page]);
   const summary = useMemo(() => {
@@ -281,18 +160,11 @@ export function PaymentManagementPage() {
       setLoading(true);
       setError(null);
       try {
-        const [statusData, methodData, paymentData] = await Promise.all([
+        const [statusData, paymentData] = await Promise.all([
           getPaymentStatuses(),
-          getPaymentMethods(),
           getPayments(defaultFilters),
         ]);
         setStatuses(statusData);
-        setMethods(methodData);
-        setSelectedMethod(methodData[0] ?? "CASH");
-        setCheckoutValues({
-          ...emptyCheckoutForm,
-          paymentMethod: methodData[0] ?? "CASH",
-        });
         setPage(paymentData);
       } catch (loadError) {
         setError(getErrorMessage(loadError));
@@ -323,41 +195,12 @@ export function PaymentManagementPage() {
     await loadPayments(nextFilters);
   }
 
-  function openCheckoutForm() {
-    setCheckoutValues({
-      ...emptyCheckoutForm,
-      paymentMethod: methods[0] ?? "CASH",
-    });
-    setCheckoutVisible(true);
-  }
-
-  function closeCheckoutForm() {
-    setCheckoutValues(emptyCheckoutForm);
-    setCheckoutVisible(false);
-  }
-
-  async function submitCheckout() {
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      await checkoutPayment(checkoutValues);
-      setSuccess("Đã tạo hóa đơn thanh toán.");
-      closeCheckoutForm();
-      await loadPayments(filters);
-    } catch (saveError) {
-      setError(getErrorMessage(saveError));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function payCurrentPayment(payment: Payment) {
     setSaving(true);
     setError(null);
     setSuccess(null);
     try {
-      await payPayment(payment.id, selectedMethod);
+      await payPayment(payment.id, payment.paymentMethod ?? "CASH");
       setSuccess(`Đã thanh toán hóa đơn #${payment.id}.`);
       await loadPayments(filters);
     } catch (payError) {
@@ -372,7 +215,11 @@ export function PaymentManagementPage() {
     setError(null);
     setSuccess(null);
     try {
-      await updatePaymentStatus(payment.id, status, selectedMethod);
+      await updatePaymentStatus(
+        payment.id,
+        status,
+        payment.paymentMethod ?? "CASH"
+      );
       setSuccess(`Đã cập nhật hóa đơn #${payment.id}.`);
       await loadPayments(filters);
     } catch (statusError) {
@@ -408,20 +255,9 @@ export function PaymentManagementPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Quản lý thanh toán</p>
-          <h2 className="mt-1 text-2xl font-semibold">Payment</h2>
+          <h2 className="mt-1 text-2xl font-semibold">Thanh toán</h2>
         </div>
         <div className="flex gap-2">
-          <select
-            className="h-10 rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary"
-            value={selectedMethod}
-            onChange={(event) => setSelectedMethod(event.target.value)}
-          >
-            {methods.map((method) => (
-              <option key={method} value={method}>
-                {methodLabels[method] ?? method}
-              </option>
-            ))}
-          </select>
           <button
             className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
             type="button"
@@ -429,14 +265,6 @@ export function PaymentManagementPage() {
           >
             <RefreshCw className="size-4" />
             Tải lại
-          </button>
-          <button
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90"
-            type="button"
-            onClick={openCheckoutForm}
-          >
-            <Receipt className="size-4" />
-            Tạo hóa đơn
           </button>
         </div>
       </div>
@@ -534,17 +362,6 @@ export function PaymentManagementPage() {
           </button>
         </form>
 
-        {checkoutVisible && (
-          <CheckoutForm
-            methods={methods}
-            saving={saving}
-            values={checkoutValues}
-            onCancel={closeCheckoutForm}
-            onChange={setCheckoutValues}
-            onSubmit={submitCheckout}
-          />
-        )}
-
         {error && (
           <div className="flex items-center gap-2 border-b border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-red-200">
             <ShieldAlert className="size-4" />
@@ -569,7 +386,6 @@ export function PaymentManagementPage() {
                 <th className="px-4 py-3 font-medium">Số tiền</th>
                 <th className="px-4 py-3 font-medium">Phương thức</th>
                 <th className="px-4 py-3 font-medium">Trạng thái</th>
-                <th className="px-4 py-3 font-medium">Cập nhật</th>
                 <th className="px-4 py-3 text-right font-medium">Thao tác</th>
               </tr>
             </thead>
@@ -578,7 +394,7 @@ export function PaymentManagementPage() {
                 <tr>
                   <td
                     className="px-4 py-10 text-center text-muted-foreground"
-                    colSpan={8}
+                    colSpan={7}
                   >
                     Đang tải hóa đơn
                   </td>
@@ -588,7 +404,7 @@ export function PaymentManagementPage() {
                 <tr>
                   <td
                     className="px-4 py-10 text-center text-muted-foreground"
-                    colSpan={8}
+                    colSpan={7}
                   >
                     Không có hóa đơn phù hợp bộ lọc
                   </td>
@@ -640,48 +456,40 @@ export function PaymentManagementPage() {
                       <StatusBadge status={payment.status} />
                     </td>
                     <td className="px-4 py-4">
-                      <select
-                        className="h-9 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary disabled:opacity-60"
-                        disabled={
-                          saving ||
-                          payment.status === "CANCELLED" ||
-                          payment.status === "REFUNDED"
-                        }
-                        value={payment.status}
-                        onChange={(event) =>
-                          changeStatus(
-                            payment,
-                            event.target.value as PaymentStatus
-                          )
-                        }
-                      >
-                        {statuses.map((status) => (
-                          <option key={status} value={status}>
-                            {statusLabels[status] ?? status}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
-                        <button
-                          className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
-                          disabled={saving || payment.status !== "PENDING"}
-                          title="Thanh toán"
-                          type="button"
-                          onClick={() => payCurrentPayment(payment)}
-                        >
-                          <CheckCircle2 className="size-4" />
-                        </button>
-                        <button
-                          className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10 disabled:opacity-50"
-                          disabled={saving || payment.status !== "PENDING"}
-                          title="Hủy hóa đơn"
-                          type="button"
-                          onClick={() => cancelCurrentPayment(payment)}
-                        >
-                          <CircleAlert className="size-4" />
-                        </button>
+                        {payment.status === "PENDING" ? (
+                          <>
+                            <button
+                              className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                              disabled={saving}
+                              title="Thanh toán"
+                              type="button"
+                              onClick={() => payCurrentPayment(payment)}
+                            >
+                              <CheckCircle2 className="size-4" />
+                            </button>
+                            <button
+                              className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10 disabled:opacity-50"
+                              disabled={saving}
+                              title="Hủy hóa đơn"
+                              type="button"
+                              onClick={() => cancelCurrentPayment(payment)}
+                            >
+                              <CircleAlert className="size-4" />
+                            </button>
+                          </>
+                        ) : null}
+                        {payment.status === "PAID" ? (
+                          <button
+                            className="inline-flex size-9 items-center justify-center rounded-md border border-sky-400/40 text-sky-200 transition hover:bg-sky-400/10 disabled:opacity-50"
+                            disabled={saving}
+                            title="Hoàn tiền"
+                            type="button"
+                            onClick={() => changeStatus(payment, "REFUNDED")}
+                          >
+                            <RefreshCw className="size-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

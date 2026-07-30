@@ -31,13 +31,6 @@ export type PaymentFilters = {
   size: number;
 };
 
-export type PaymentCheckoutValues = {
-  customerId: string;
-  playSessionId: string;
-  orderId: string;
-  paymentMethod: string;
-};
-
 export type CustomerTopUpValues = {
   amount: string;
   paymentMethod: string;

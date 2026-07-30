@@ -35,6 +35,7 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, In
             "playSession.machine",
             "employee",
             "employee.user",
+            "invoice",
             "orderDetails",
             "orderDetails.serviceItem"
     })

@@ -1,7 +1,6 @@
 package com.cybergame.service.impl;
 
 import com.cybergame.dto.request.CustomerTopUpRequest;
-import com.cybergame.dto.request.PaymentCheckoutRequest;
 import com.cybergame.dto.request.PaymentPayRequest;
 import com.cybergame.dto.request.PaymentStatusUpdateRequest;
 import com.cybergame.dto.response.MessageResponse;
@@ -10,10 +9,8 @@ import com.cybergame.entity.Customer;
 import com.cybergame.entity.CustomerOrder;
 import com.cybergame.entity.Employee;
 import com.cybergame.entity.Invoice;
-import com.cybergame.entity.PlaySession;
 import com.cybergame.entity.enums.InvoiceStatus;
 import com.cybergame.entity.enums.OrderStatus;
-import com.cybergame.entity.enums.PlaySessionStatus;
 import com.cybergame.exception.BusinessException;
 import com.cybergame.exception.ResourceNotFoundException;
 import com.cybergame.mapper.PaymentMapper;
@@ -22,7 +19,6 @@ import com.cybergame.repository.CustomerRepository;
 import com.cybergame.repository.EmployeeRepository;
 import com.cybergame.repository.InvoiceRepository;
 import com.cybergame.repository.PaymentSpecifications;
-import com.cybergame.repository.PlaySessionRepository;
 import com.cybergame.security.CurrentUser;
 import com.cybergame.service.PaymentService;
 import com.cybergame.websocket.RealtimeEventPublisher;
@@ -46,9 +42,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
-    private static final String PLAY_SESSION_TRANSACTION = "PLAY_SESSION";
     private static final String FOOD_ORDER_TRANSACTION = "FOOD_ORDER";
-    private static final String COMBINED_TRANSACTION = "COMBINED";
     private static final String WALLET_TOP_UP_TRANSACTION = "WALLET_TOP_UP";
     private static final String CASH_METHOD = "CASH";
     private static final String BANK_TRANSFER_METHOD = "BANK_TRANSFER";
@@ -59,7 +53,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final InvoiceRepository invoiceRepository;
     private final CustomerRepository customerRepository;
     private final EmployeeRepository employeeRepository;
-    private final PlaySessionRepository playSessionRepository;
     private final CustomerOrderRepository customerOrderRepository;
     private final PaymentMapper paymentMapper;
     private final RealtimeEventPublisher realtimeEventPublisher;
@@ -100,55 +93,11 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentResponse checkout(CurrentUser currentUser, PaymentCheckoutRequest request) {
-        if (request.playSessionId() == null && request.orderId() == null) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Play session id or order id is required");
-        }
-
-        PlaySession playSession = resolvePlaySession(request.playSessionId());
-        CustomerOrder order = resolveOrder(request.orderId());
-        Customer customer = resolveCheckoutCustomer(currentUser, request.customerId(), playSession, order);
-
-        if (playSession != null && invoiceRepository.existsActivePlaySessionInvoice(playSession.getId())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Play session already has active invoice");
-        }
-        if (order != null && invoiceRepository.existsActiveOrderInvoice(order.getId())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Order already has invoice");
-        }
-
-        BigDecimal playSessionAmount = playSession == null || playSession.getTotalHourlyAmount() == null
-                ? BigDecimal.ZERO
-                : playSession.getTotalHourlyAmount();
-        BigDecimal orderAmount = order == null ? BigDecimal.ZERO : order.getTotalAmount();
-        BigDecimal amount = playSessionAmount.add(orderAmount);
-
-        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Invoice amount must be greater than 0");
-        }
-
-        Invoice invoice = new Invoice();
-        invoice.setCustomer(customer);
-        invoice.setEmployee(resolveCurrentEmployee(currentUser).orElse(null));
-        invoice.setPlaySession(playSession);
-        invoice.setOrder(order);
-        invoice.setTransactionType(resolveTransactionType(playSession, order));
-        invoice.setAmount(amount);
-        invoice.setPaymentMethod(resolveServicePaymentMethod(null, request.paymentMethod()));
-        invoice.setStatus(InvoiceStatus.PENDING);
-        invoice.setTransactionAt(LocalDateTime.now());
-
-        Invoice savedInvoice = invoiceRepository.save(invoice);
-        publishPaymentChanged(savedInvoice, "CHECKOUT_CREATED");
-        return paymentMapper.toResponse(savedInvoice);
-    }
-
-    @Override
-    @Transactional
     public PaymentResponse topUp(CurrentUser currentUser, CustomerTopUpRequest request) {
         Customer customer = getCurrentCustomer(currentUser);
         BigDecimal amount = normalizeAmount(request.amount());
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Top-up amount must be greater than 0");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Số tiền nạp phải lớn hơn 0");
         }
 
         Invoice invoice = new Invoice();
@@ -172,7 +121,7 @@ public class PaymentServiceImpl implements PaymentService {
         validateCanAccess(currentUser, invoice);
 
         if (invoice.getStatus() != InvoiceStatus.PENDING) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Only pending invoice can be paid");
+            throw new BusinessException(HttpStatus.CONFLICT, "Chỉ hóa đơn chờ thanh toán mới được xác nhận thanh toán");
         }
 
         String paymentMethod = resolvePaymentMethodForInvoice(invoice, request.paymentMethod());
@@ -196,28 +145,18 @@ public class PaymentServiceImpl implements PaymentService {
         InvoiceStatus currentStatus = invoice.getStatus();
         InvoiceStatus nextStatus = request.status();
 
-        if (currentStatus == InvoiceStatus.CANCELLED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Cancelled invoice cannot be changed");
-        }
-        if (currentStatus == InvoiceStatus.REFUNDED && nextStatus != InvoiceStatus.REFUNDED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Refunded invoice cannot be reopened");
-        }
-        if (nextStatus == InvoiceStatus.REFUNDED && currentStatus != InvoiceStatus.PAID) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Only paid invoice can be refunded");
-        }
-        if (nextStatus == InvoiceStatus.CANCELLED && currentStatus == InvoiceStatus.PAID) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Paid invoice must be refunded instead of cancelled");
+        validatePaymentStatusTransition(currentStatus, nextStatus);
+        if (currentStatus == nextStatus) {
+            return paymentMapper.toResponse(invoice);
         }
 
         String paymentMethod = invoice.getPaymentMethod();
         if (nextStatus == InvoiceStatus.PAID) {
             paymentMethod = resolvePaymentMethodForInvoice(invoice, request.paymentMethod());
-            if (currentStatus != InvoiceStatus.PAID) {
-                applyPaidPaymentEffects(currentUser, invoice, paymentMethod);
-            }
+            applyPaidPaymentEffects(currentUser, invoice, paymentMethod);
             invoice.setPaymentMethod(paymentMethod);
-        } else if (request.paymentMethod() != null && !request.paymentMethod().isBlank()) {
-            invoice.setPaymentMethod(resolvePaymentMethodForInvoice(invoice, request.paymentMethod()));
+        } else if (nextStatus == InvoiceStatus.REFUNDED) {
+            applyRefundPaymentEffects(invoice);
         }
         invoice.setStatus(nextStatus);
         if (nextStatus == InvoiceStatus.PAID || nextStatus == InvoiceStatus.REFUNDED) {
@@ -228,6 +167,10 @@ public class PaymentServiceImpl implements PaymentService {
         Invoice savedInvoice = invoiceRepository.save(invoice);
         if (savedInvoice.getStatus() == InvoiceStatus.PAID) {
             prepareFoodOrderAfterPaid(savedInvoice);
+        } else if (savedInvoice.getStatus() == InvoiceStatus.CANCELLED) {
+            cancelFoodOrderAfterPaymentCancelled(savedInvoice);
+        } else if (savedInvoice.getStatus() == InvoiceStatus.REFUNDED) {
+            refundFoodOrderAfterPaymentRefunded(savedInvoice);
         }
         publishPaymentChanged(savedInvoice, savedInvoice.getStatus().name());
         return paymentMapper.toResponse(savedInvoice);
@@ -240,19 +183,20 @@ public class PaymentServiceImpl implements PaymentService {
         validateCanAccess(currentUser, invoice);
 
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Invoice is already cancelled");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đã bị hủy");
         }
         if (invoice.getStatus() == InvoiceStatus.PAID) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Paid invoice must be refunded instead of cancelled");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đã thanh toán phải được hoàn tiền thay vì hủy");
         }
         if (invoice.getStatus() == InvoiceStatus.REFUNDED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Refunded invoice cannot be cancelled");
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đã hoàn tiền không thể hủy");
         }
 
         invoice.setStatus(InvoiceStatus.CANCELLED);
-        invoiceRepository.save(invoice);
-        publishPaymentChanged(invoice, InvoiceStatus.CANCELLED.name());
-        return new MessageResponse("Invoice has been cancelled");
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        cancelFoodOrderAfterPaymentCancelled(savedInvoice);
+        publishPaymentChanged(savedInvoice, InvoiceStatus.CANCELLED.name());
+        return new MessageResponse("Đã hủy hóa đơn");
     }
 
     @Override
@@ -269,64 +213,12 @@ public class PaymentServiceImpl implements PaymentService {
 
     private Invoice getInvoiceById(Integer id) {
         return invoiceRepository.findDetailedById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
-    }
-
-    private PlaySession resolvePlaySession(Integer playSessionId) {
-        if (playSessionId == null) {
-            return null;
-        }
-
-        PlaySession playSession = playSessionRepository.findDetailedById(playSessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Play session not found"));
-        if (playSession.getStatus() != PlaySessionStatus.COMPLETED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Play session must be completed before checkout");
-        }
-        return playSession;
-    }
-
-    private CustomerOrder resolveOrder(Integer orderId) {
-        if (orderId == null) {
-            return null;
-        }
-
-        CustomerOrder order = customerOrderRepository.findDetailedById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-        if (order.getStatus() != OrderStatus.COMPLETED) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Order must be completed before checkout");
-        }
-        return order;
-    }
-
-    private Customer resolveCheckoutCustomer(
-            CurrentUser currentUser,
-            Integer requestCustomerId,
-            PlaySession playSession,
-            CustomerOrder order
-    ) {
-        Customer sourceCustomer = playSession != null ? playSession.getCustomer() : order.getCustomer();
-        if (order != null && !order.getCustomer().getId().equals(sourceCustomer.getId())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Order and play session must belong to same customer");
-        }
-        if (requestCustomerId != null && !sourceCustomer.getId().equals(requestCustomerId)) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Customer id does not match checkout source");
-        }
-
-        if (canManagePayments(currentUser)) {
-            return customerRepository.findById(sourceCustomer.getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
-        }
-
-        Customer currentCustomer = getCurrentCustomer(currentUser);
-        if (!sourceCustomer.getId().equals(currentCustomer.getId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Checkout source does not belong to current customer");
-        }
-        return currentCustomer;
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hóa đơn"));
     }
 
     private Customer getCurrentCustomer(CurrentUser currentUser) {
         return customerRepository.findByUserId(currentUser.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ khách hàng"));
     }
 
     private Optional<Employee> resolveCurrentEmployee(CurrentUser currentUser) {
@@ -334,16 +226,6 @@ public class PaymentServiceImpl implements PaymentService {
             return Optional.empty();
         }
         return employeeRepository.findByUserId(currentUser.id());
-    }
-
-    private String resolveTransactionType(PlaySession playSession, CustomerOrder order) {
-        if (playSession != null && order != null) {
-            return COMBINED_TRANSACTION;
-        }
-        if (playSession != null) {
-            return PLAY_SESSION_TRANSACTION;
-        }
-        return FOOD_ORDER_TRANSACTION;
     }
 
     private String resolvePaymentMethodForInvoice(Invoice invoice, String requestPaymentMethod) {
@@ -360,11 +242,11 @@ public class PaymentServiceImpl implements PaymentService {
     private String resolveServicePaymentMethod(String currentPaymentMethod, String requestPaymentMethod) {
         String nextPaymentMethod = toNullableText(requestPaymentMethod);
         if (nextPaymentMethod != null) {
-            validatePaymentMethod(nextPaymentMethod, PAYMENT_METHODS, "Payment method is not supported for service payment");
+            validatePaymentMethod(nextPaymentMethod, PAYMENT_METHODS, "Phương thức thanh toán không được hỗ trợ cho đơn dịch vụ");
             return nextPaymentMethod;
         }
         if (currentPaymentMethod != null && !currentPaymentMethod.isBlank()) {
-            validatePaymentMethod(currentPaymentMethod, PAYMENT_METHODS, "Payment method is not supported for service payment");
+            validatePaymentMethod(currentPaymentMethod, PAYMENT_METHODS, "Phương thức thanh toán không được hỗ trợ cho đơn dịch vụ");
             return currentPaymentMethod;
         }
         return PAYMENT_METHODS.get(0);
@@ -375,7 +257,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (paymentMethod == null) {
             paymentMethod = TOP_UP_PAYMENT_METHODS.get(0);
         }
-        validatePaymentMethod(paymentMethod, TOP_UP_PAYMENT_METHODS, "Top-up only supports cash or bank transfer");
+        validatePaymentMethod(paymentMethod, TOP_UP_PAYMENT_METHODS, "Nạp tiền chỉ hỗ trợ tiền mặt hoặc chuyển khoản");
         return paymentMethod;
     }
 
@@ -383,6 +265,23 @@ public class PaymentServiceImpl implements PaymentService {
         if (!supportedMethods.contains(paymentMethod)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, message);
         }
+    }
+
+    private void validatePaymentStatusTransition(InvoiceStatus currentStatus, InvoiceStatus nextStatus) {
+        if (currentStatus == nextStatus) {
+            return;
+        }
+        if (currentStatus == InvoiceStatus.PENDING
+                && (nextStatus == InvoiceStatus.PAID || nextStatus == InvoiceStatus.CANCELLED)) {
+            return;
+        }
+        if (currentStatus == InvoiceStatus.PAID && nextStatus == InvoiceStatus.REFUNDED) {
+            return;
+        }
+        if (currentStatus == InvoiceStatus.CANCELLED || currentStatus == InvoiceStatus.REFUNDED) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Hóa đơn đã đóng không thể thay đổi");
+        }
+        throw new BusinessException(HttpStatus.CONFLICT, "Không thể chuyển hóa đơn sang trạng thái này");
     }
 
     private void applyPaidPaymentEffects(CurrentUser currentUser, Invoice invoice, String paymentMethod) {
@@ -398,7 +297,18 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         if (!canManagePayments(currentUser)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin or employee can confirm external payment");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ admin hoặc nhân viên được xác nhận thanh toán bên ngoài");
+        }
+    }
+
+    private void applyRefundPaymentEffects(Invoice invoice) {
+        if (WALLET_TOP_UP_TRANSACTION.equals(invoice.getTransactionType())) {
+            debitCustomerBalance(invoice.getCustomer(), invoice.getAmount());
+            return;
+        }
+
+        if (ACCOUNT_BALANCE_METHOD.equals(invoice.getPaymentMethod())) {
+            creditCustomerBalance(invoice.getCustomer(), invoice.getAmount());
         }
     }
 
@@ -411,7 +321,7 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal currentBalance = normalizeAmount(customer.getBalance());
         BigDecimal normalizedAmount = normalizeAmount(amount);
         if (currentBalance.compareTo(normalizedAmount) < 0) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Customer balance is not enough to pay this invoice");
+            throw new BusinessException(HttpStatus.CONFLICT, "Số dư khách hàng không đủ để thanh toán hóa đơn này");
         }
         customer.setBalance(currentBalance.subtract(normalizedAmount));
         customerRepository.save(customer);
@@ -424,13 +334,13 @@ public class PaymentServiceImpl implements PaymentService {
 
         Customer currentCustomer = getCurrentCustomer(currentUser);
         if (!invoice.getCustomer().getId().equals(currentCustomer.getId())) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Invoice does not belong to current customer");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Hóa đơn không thuộc khách hàng hiện tại");
         }
     }
 
     private void validateCanManagePayments(CurrentUser currentUser) {
         if (!canManagePayments(currentUser)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Only admin or employee can manage payment status");
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Chỉ admin hoặc nhân viên được quản lý trạng thái thanh toán");
         }
     }
 
@@ -466,12 +376,43 @@ public class PaymentServiceImpl implements PaymentService {
         publishFoodOrderChanged(savedOrder.getId(), OrderStatus.PREPARING.name());
     }
 
+    private void cancelFoodOrderAfterPaymentCancelled(Invoice invoice) {
+        CustomerOrder order = invoice.getOrder();
+        if (order == null || !FOOD_ORDER_TRANSACTION.equals(invoice.getTransactionType())) {
+            return;
+        }
+        cancelFoodOrderFromPayment(order, false);
+    }
+
+    private void refundFoodOrderAfterPaymentRefunded(Invoice invoice) {
+        CustomerOrder order = invoice.getOrder();
+        if (order == null || !FOOD_ORDER_TRANSACTION.equals(invoice.getTransactionType())) {
+            return;
+        }
+        cancelFoodOrderFromPayment(order, true);
+    }
+
+    private void cancelFoodOrderFromPayment(CustomerOrder order, boolean refunded) {
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            return;
+        }
+        if (order.getStatus() != OrderStatus.COMPLETED) {
+            order.getOrderDetails().forEach(detail -> {
+                var serviceItem = detail.getServiceItem();
+                serviceItem.setStockQuantity(serviceItem.getStockQuantity() + detail.getQuantity());
+            });
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        CustomerOrder savedOrder = customerOrderRepository.save(order);
+        publishFoodOrderChanged(savedOrder.getId(), refunded ? InvoiceStatus.REFUNDED.name() : OrderStatus.CANCELLED.name());
+    }
+
     private void publishPaymentChanged(Invoice invoice, String action) {
         realtimeEventPublisher.publish(
                 RealtimeEventType.PAYMENT_CHANGED,
                 invoice.getId(),
                 action,
-                "Payment data has changed"
+                "Dữ liệu thanh toán đã thay đổi"
         );
     }
 
@@ -480,7 +421,7 @@ public class PaymentServiceImpl implements PaymentService {
                 RealtimeEventType.FOOD_ORDER_CHANGED,
                 entityId,
                 action,
-                "Food service data has changed"
+                "Dữ liệu dịch vụ đã thay đổi"
         );
     }
 }

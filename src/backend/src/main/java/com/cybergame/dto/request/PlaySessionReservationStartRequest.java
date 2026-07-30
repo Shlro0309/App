@@ -6,10 +6,10 @@ import jakarta.validation.constraints.NotNull;
 import java.util.Set;
 
 public record PlaySessionReservationStartRequest(
-        @NotNull(message = "Reservation id is required")
+        @NotNull(message = "Mã đặt máy là bắt buộc")
         Integer reservationId,
 
-        @NotEmpty(message = "At least one machine is required")
-        Set<@NotNull(message = "Machine id is required") Integer> machineIds
+        @NotEmpty(message = "Cần chọn ít nhất một máy trạm")
+        Set<@NotNull(message = "Mã máy trạm là bắt buộc") Integer> machineIds
 ) {
 }

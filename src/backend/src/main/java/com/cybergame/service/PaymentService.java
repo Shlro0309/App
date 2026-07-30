@@ -1,6 +1,5 @@
 package com.cybergame.service;
 
-import com.cybergame.dto.request.PaymentCheckoutRequest;
 import com.cybergame.dto.request.PaymentPayRequest;
 import com.cybergame.dto.request.PaymentStatusUpdateRequest;
 import com.cybergame.dto.request.CustomerTopUpRequest;
@@ -26,8 +25,6 @@ public interface PaymentService {
     );
 
     PaymentResponse getPayment(CurrentUser currentUser, Integer id);
-
-    PaymentResponse checkout(CurrentUser currentUser, PaymentCheckoutRequest request);
 
     PaymentResponse topUp(CurrentUser currentUser, CustomerTopUpRequest request);
 

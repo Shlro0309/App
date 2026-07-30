@@ -23,7 +23,7 @@ type NavigationItem = {
 };
 
 const navigationItems: NavigationItem[] = [
-  { label: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["ADMIN", "EMPLOYEE"] },
+  { label: "Tổng quan", path: "/", icon: LayoutDashboard, roles: ["ADMIN", "EMPLOYEE"] },
   { label: "Tài khoản", path: "/users", icon: Users, roles: ["ADMIN", "EMPLOYEE"] },
   { label: "Máy trạm", path: "/machines", icon: Monitor, roles: ["ADMIN", "EMPLOYEE"] },
   { label: "Đặt máy", path: "/reservations", icon: CalendarClock },
@@ -62,7 +62,7 @@ export function AppLayout() {
             </div>
             <div>
               <p className="text-sm font-medium text-primary">Cyber Game</p>
-              <h1 className="text-xl font-semibold">Management</h1>
+              <h1 className="text-xl font-semibold">Quản lý</h1>
             </div>
           </div>
 
@@ -119,7 +119,7 @@ export function AppLayout() {
             </div>
             <div>
               <p className="text-sm font-medium text-primary">Cyber Game</p>
-              <h1 className="text-lg font-semibold">Management</h1>
+              <h1 className="text-lg font-semibold">Quản lý</h1>
             </div>
           </div>
           <button

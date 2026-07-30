@@ -4,7 +4,7 @@ import com.cybergame.entity.enums.OrderStatus;
 import jakarta.validation.constraints.NotNull;
 
 public record CustomerOrderStatusUpdateRequest(
-        @NotNull(message = "Status is required")
+        @NotNull(message = "Trạng thái là bắt buộc")
         OrderStatus status
 ) {
 }

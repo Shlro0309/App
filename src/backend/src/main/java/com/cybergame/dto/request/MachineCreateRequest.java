@@ -11,31 +11,31 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public record MachineCreateRequest(
-        @NotBlank(message = "Machine name is required")
-        @Size(max = 20, message = "Machine name must not exceed 20 characters")
+        @NotBlank(message = "Tên máy trạm là bắt buộc")
+        @Size(max = 20, message = "Tên máy trạm không được vượt quá 20 ký tự")
         String name,
 
-        @NotNull(message = "Area is required")
+        @NotNull(message = "Khu vực là bắt buộc")
         Integer areaId,
 
-        @Size(max = 100, message = "CPU must not exceed 100 characters")
+        @Size(max = 100, message = "CPU không được vượt quá 100 ký tự")
         String cpu,
 
-        @Size(max = 100, message = "GPU must not exceed 100 characters")
+        @Size(max = 100, message = "GPU không được vượt quá 100 ký tự")
         String gpu,
 
-        @PositiveOrZero(message = "RAM must be greater than or equal to 0")
+        @PositiveOrZero(message = "RAM phải lớn hơn hoặc bằng 0")
         Integer ram,
 
-        @PositiveOrZero(message = "FPS must be greater than or equal to 0")
+        @PositiveOrZero(message = "FPS phải lớn hơn hoặc bằng 0")
         Integer fps,
 
-        @Size(max = 20, message = "Resolution must not exceed 20 characters")
+        @Size(max = 20, message = "Độ phân giải không được vượt quá 20 ký tự")
         String resolution,
 
-        @NotNull(message = "Hourly price is required")
-        @DecimalMin(value = "0.00", message = "Hourly price must be greater than or equal to 0")
-        @Digits(integer = 8, fraction = 2, message = "Hourly price must have up to 8 integer digits and 2 fraction digits")
+        @NotNull(message = "Giá theo giờ là bắt buộc")
+        @DecimalMin(value = "0.00", message = "Giá theo giờ phải lớn hơn hoặc bằng 0")
+        @Digits(integer = 8, fraction = 2, message = "Giá theo giờ chỉ được có tối đa 8 chữ số nguyên và 2 chữ số thập phân")
         BigDecimal hourlyPrice,
 
         MachineStatus status

@@ -90,7 +90,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 RealtimeEventType.MACHINE_STATUS_CHANGED,
                 savedMachine.getId(),
                 "CREATED",
-                "Machine has been created"
+                "Đã tạo máy trạm"
         );
         return machineMapper.toResponse(savedMachine);
     }
@@ -116,7 +116,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 RealtimeEventType.MACHINE_STATUS_CHANGED,
                 savedMachine.getId(),
                 "UPDATED",
-                "Machine has been updated"
+                "Đã cập nhật máy trạm"
         );
         return machineMapper.toResponse(savedMachine);
     }
@@ -132,7 +132,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 RealtimeEventType.MACHINE_STATUS_CHANGED,
                 savedMachine.getId(),
                 savedMachine.getStatus().name(),
-                "Machine status has changed"
+                "Trạng thái máy trạm đã thay đổi"
         );
         return machineMapper.toResponse(savedMachine);
     }
@@ -142,7 +142,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     public MessageResponse deleteMachine(Integer id) {
         Machine machine = getMachineById(id);
         if (playSessionRepository.existsByMachineIdAndStatus(machine.getId(), PlaySessionStatus.ACTIVE)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Machine with active play session cannot be deleted");
+            throw new BusinessException(HttpStatus.CONFLICT, "Không thể xóa máy trạm đang có phiên chơi hoạt động");
         }
 
         hardDeleteMachine(machine.getId());
@@ -150,9 +150,9 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 RealtimeEventType.MACHINE_STATUS_CHANGED,
                 machine.getId(),
                 "DELETED",
-                "Machine has been deleted"
+                "Đã xóa máy trạm"
         );
-        return new MessageResponse("Machine has been deleted");
+        return new MessageResponse("Đã xóa máy trạm");
     }
 
     @Override
@@ -205,7 +205,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
             if (UNCATEGORIZED_AREA_NAME.equalsIgnoreCase(area.getName())) {
                 throw new BusinessException(
                         HttpStatus.CONFLICT,
-                        "Uncategorized area cannot be deleted while machines are assigned"
+                        "Không thể xóa khu vực chưa phân khu khi vẫn còn máy được gán vào"
                 );
             }
             Area fallbackArea = getOrCreateUncategorizedArea(area.getId());
@@ -216,7 +216,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
         areaRepository.delete(area);
         publishAreaChanged(area, "DELETED");
         machines.forEach(machine -> publishMachineChanged(machine, "AREA_REASSIGNED"));
-        return new MessageResponse("Area has been deleted and machines have been moved to uncategorized area");
+        return new MessageResponse("Đã xóa khu vực và chuyển máy sang khu vực chưa phân khu");
     }
 
     @Override
@@ -228,7 +228,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
 
     private Machine getMachineById(Integer id) {
         return machineRepository.findDetailedById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Machine not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy máy trạm"));
     }
 
     private void validateStatusTransition(Machine machine, MachineStatus nextStatus) {
@@ -238,7 +238,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
         ) {
             throw new BusinessException(
                     HttpStatus.CONFLICT,
-                    "Playing machine cannot be changed to reserved or maintenance"
+                    "Không thể chuyển máy đang chơi sang trạng thái đã đặt hoặc bảo trì"
             );
         }
     }
@@ -280,7 +280,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
 
     private Area getArea(Integer areaId) {
         return areaRepository.findById(areaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Area not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khu vực"));
     }
 
     private Area getOrCreateUncategorizedArea(Integer excludedAreaId) {
@@ -302,7 +302,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 : machineRepository.existsByNameIgnoreCaseAndIdNot(name, currentMachineId);
 
         if (exists) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Machine name already exists");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tên máy trạm đã tồn tại");
         }
     }
 
@@ -312,7 +312,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 : areaRepository.existsByNameIgnoreCaseAndIdNot(name, currentAreaId);
 
         if (exists) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Area name already exists");
+            throw new BusinessException(HttpStatus.CONFLICT, "Tên khu vực đã tồn tại");
         }
     }
 
@@ -338,7 +338,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 RealtimeEventType.MACHINE_AREA_CHANGED,
                 area.getId(),
                 action,
-                "Machine area has changed"
+                "Khu vực máy trạm đã thay đổi"
         );
     }
 
@@ -347,7 +347,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 RealtimeEventType.MACHINE_STATUS_CHANGED,
                 machine.getId(),
                 action,
-                "Machine has changed"
+                "Máy trạm đã thay đổi"
         );
     }
 }

@@ -28,6 +28,7 @@ import {
   updateUserRole,
   updateUserStatus,
 } from "./userApi";
+import { FormModal } from "@/components/FormModal";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import { useAuthStore } from "@/stores/authStore";
 import type {
@@ -113,6 +114,14 @@ function formatDateTime(value: string) {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function StatusBadge({ status }: { status: AccountStatus }) {
@@ -293,6 +302,7 @@ export function UserManagementPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formValues, setFormValues] = useState<UserFormValues>(emptyForm);
   const [balanceDrafts, setBalanceDrafts] = useState<Record<number, string>>({});
+  const [balanceEditingUser, setBalanceEditingUser] = useState<User | null>(null);
 
   const users = useMemo(() => page?.content ?? [], [page]);
   const summary = useMemo(() => {
@@ -413,6 +423,20 @@ export function UserManagementPage() {
     setFormValues(emptyForm);
   }
 
+  function openBalanceForm(user: User) {
+    setBalanceDrafts((current) => ({
+      ...current,
+      [user.id]: String(Math.round(user.customerBalance ?? 0)),
+    }));
+    setBalanceEditingUser(user);
+    setError(null);
+    setSuccess(null);
+  }
+
+  function closeBalanceForm() {
+    setBalanceEditingUser(null);
+  }
+
   async function submitForm() {
     setSaving(true);
     setError(null);
@@ -493,24 +517,6 @@ export function UserManagementPage() {
     }
   }
 
-  async function changeRole(user: User, role: UserRole) {
-    if (!canManageRoles) {
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      await updateUserRole(user.id, role);
-      setSuccess("Đã cập nhật vai trò tài khoản.");
-      await loadUsers(filters);
-    } catch (saveError) {
-      setError(getErrorMessage(saveError));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function changePage(nextPage: number) {
     await loadUsers({ ...filters, page: nextPage });
   }
@@ -531,6 +537,7 @@ export function UserManagementPage() {
     setSuccess(null);
     try {
       await updateUserBalance(user.id, nextBalance);
+      closeBalanceForm();
       setSuccess("Đã cập nhật số dư khách hàng.");
       await loadUsers(filters);
     } catch (saveError) {
@@ -544,7 +551,7 @@ export function UserManagementPage() {
     <section className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="grid gap-2">
-          <p className="text-sm font-medium text-primary">User Management</p>
+          <p className="text-sm font-medium text-primary">Quản lý tài khoản</p>
           <h2 className="text-2xl font-semibold">Quản lý tài khoản</h2>
           <p className="text-sm text-muted-foreground">
             {customerAccountsOnly
@@ -619,16 +626,66 @@ export function UserManagementPage() {
 
       <div className="overflow-hidden rounded-lg border bg-background/75 shadow-sm backdrop-blur">
         {formVisible ? (
-          <UserForm
-            canManageRoles={canManageRoles}
-            mode={editingId == null ? "create" : "edit"}
-            roles={roles}
-            saving={saving}
-            values={formValues}
-            onCancel={closeForm}
-            onChange={setFormValues}
-            onSubmit={submitForm}
-          />
+          <FormModal
+            title={editingId == null ? "Thêm tài khoản" : "Sửa tài khoản"}
+            onClose={closeForm}
+          >
+            <UserForm
+              canManageRoles={canManageRoles}
+              mode={editingId == null ? "create" : "edit"}
+              roles={roles}
+              saving={saving}
+              values={formValues}
+              onCancel={closeForm}
+              onChange={setFormValues}
+              onSubmit={submitForm}
+            />
+          </FormModal>
+        ) : null}
+
+        {balanceEditingUser ? (
+          <FormModal title="Cập nhật số dư" onClose={closeBalanceForm}>
+            <form
+              className="grid gap-4 bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveBalance(balanceEditingUser);
+              }}
+            >
+              <label className="grid gap-2 text-sm">
+                <span className="text-muted-foreground">Số dư mới</span>
+                <input
+                  className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+                  min={0}
+                  required
+                  step={1000}
+                  type="number"
+                  value={balanceDrafts[balanceEditingUser.id] ?? ""}
+                  onChange={(event) =>
+                    updateBalanceDraft(balanceEditingUser.id, event.target.value)
+                  }
+                />
+              </label>
+              <div className="flex items-end gap-2">
+                <button
+                  className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+                  disabled={saving}
+                  type="submit"
+                >
+                  <CheckCircle2 className="size-4" />
+                  Lưu
+                </button>
+                <button
+                  className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  type="button"
+                  onClick={closeBalanceForm}
+                >
+                  <X className="size-4" />
+                  Hủy
+                </button>
+              </div>
+            </form>
+          </FormModal>
         ) : null}
 
         <form
@@ -726,23 +783,7 @@ export function UserManagementPage() {
                     </td>
                     {showRoleColumn ? (
                       <td className="px-4 py-3">
-                        <div className="grid gap-2">
-                          <RoleBadge role={user.role} />
-                          <select
-                            className="h-8 rounded-md border bg-background px-2 text-xs outline-none transition focus:border-primary"
-                            disabled={saving}
-                            value={user.role}
-                            onChange={(event) =>
-                              void changeRole(user, event.target.value as UserRole)
-                            }
-                          >
-                            {roles.map((role) => (
-                              <option key={role.id} value={role.name}>
-                                {roleLabels[role.name] ?? role.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        <RoleBadge role={user.role} />
                       </td>
                     ) : null}
                     <td className="px-4 py-3">
@@ -759,24 +800,18 @@ export function UserManagementPage() {
                     </td>
                     <td className="px-4 py-3">
                       {user.customerId ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            className="h-9 w-32 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary"
-                            min={0}
-                            step={1000}
-                            type="number"
-                            value={balanceDrafts[user.id] ?? ""}
-                            onChange={(event) =>
-                              updateBalanceDraft(user.id, event.target.value)
-                            }
-                          />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium">
+                            {formatCurrency(user.customerBalance ?? 0)}
+                          </span>
                           <button
-                            className="inline-flex h-9 items-center rounded-md border px-3 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                            className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
                             disabled={saving}
+                            title="Sửa số dư"
                             type="button"
-                            onClick={() => void saveBalance(user)}
+                            onClick={() => openBalanceForm(user)}
                           >
-                            Lưu
+                            <Edit3 className="size-4" />
                           </button>
                         </div>
                       ) : (

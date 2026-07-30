@@ -36,6 +36,7 @@ function toOrderPayload(values: FoodOrderFormValues) {
   return {
     customerId: optionalNumber(values.customerId),
     playSessionId: optionalNumber(values.playSessionId),
+    paymentMethod: nullableText(values.paymentMethod),
     items: values.items
       .filter((item) => item.serviceId.trim() && item.quantity.trim())
       .map((item) => ({

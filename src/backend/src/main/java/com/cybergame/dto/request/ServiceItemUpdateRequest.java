@@ -9,21 +9,21 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public record ServiceItemUpdateRequest(
-        @NotBlank(message = "Service name is required")
-        @Size(max = 100, message = "Service name must have at most 100 characters")
+        @NotBlank(message = "Tên dịch vụ là bắt buộc")
+        @Size(max = 100, message = "Tên dịch vụ không được vượt quá 100 ký tự")
         String name,
 
-        @DecimalMin(value = "0.00", message = "Price must be greater than or equal to 0")
-        @Digits(integer = 8, fraction = 2, message = "Price must have up to 8 integer digits and 2 fraction digits")
+        @DecimalMin(value = "0.00", message = "Giá phải lớn hơn hoặc bằng 0")
+        @Digits(integer = 8, fraction = 2, message = "Giá chỉ được có tối đa 8 chữ số nguyên và 2 chữ số thập phân")
         BigDecimal price,
 
-        @Size(max = 50, message = "Service type must have at most 50 characters")
+        @Size(max = 50, message = "Loại dịch vụ không được vượt quá 50 ký tự")
         String serviceType,
 
-        @Size(max = 255, message = "Image URL must have at most 255 characters")
+        @Size(max = 255, message = "URL hình ảnh không được vượt quá 255 ký tự")
         String imageUrl,
 
-        @Min(value = 0, message = "Stock quantity must be greater than or equal to 0")
+        @Min(value = 0, message = "Số lượng tồn phải lớn hơn hoặc bằng 0")
         Integer stockQuantity
 ) {
 }

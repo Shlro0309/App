@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { AxiosError } from "axios";
 import {
   CheckCircle2,
@@ -72,6 +72,7 @@ const emptyServiceForm: ServiceItemFormValues = {
 const emptyOrderForm: FoodOrderFormValues = {
   customerId: "",
   playSessionId: "",
+  paymentMethod: "CASH",
   items: [{ serviceId: "", quantity: "1" }],
 };
 
@@ -184,6 +185,35 @@ function OrderStatusBadge({ status }: { status: FoodOrderStatus }) {
     >
       {orderStatusLabels[status]}
     </span>
+  );
+}
+
+function FormModal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="grid max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-md border bg-background shadow-2xl">
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            title="Đóng"
+            type="button"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto">{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -469,22 +499,17 @@ function OrderForm({
 type ServiceCardProps = {
   serviceItem: ServiceItem;
   saving: boolean;
-  statuses: ServiceItemStatus[];
   onDeactivate: (serviceItem: ServiceItem) => void;
   onEdit: (serviceItem: ServiceItem) => void;
-  onStatusChange: (
-    serviceItem: ServiceItem,
-    status: ServiceItemStatus
-  ) => void;
+  onStatusEdit: (serviceItem: ServiceItem) => void;
 };
 
 function ServiceCard({
   serviceItem,
   saving,
-  statuses,
   onDeactivate,
   onEdit,
-  onStatusChange,
+  onStatusEdit,
 }: ServiceCardProps) {
   return (
     <article
@@ -533,24 +558,15 @@ function ServiceCard({
       </div>
 
       <div className="mt-auto flex items-center justify-between gap-2">
-        <select
-          aria-label={`Cập nhật trạng thái ${serviceItem.name}`}
-          className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary disabled:opacity-60"
+        <button
+          className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-60"
           disabled={saving}
-          value={serviceItem.status}
-          onChange={(event) =>
-            onStatusChange(
-              serviceItem,
-              event.target.value as ServiceItemStatus
-            )
-          }
+          type="button"
+          onClick={() => onStatusEdit(serviceItem)}
         >
-          {statuses.map((status) => (
-            <option key={status} value={status}>
-              {serviceStatusLabels[status] ?? status}
-            </option>
-          ))}
-        </select>
+          <RefreshCw className="size-4" />
+          Trạng thái
+        </button>
         <div className="flex gap-2">
           <button
             className="inline-flex size-9 items-center justify-center rounded-md border bg-background/80 text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -605,6 +621,10 @@ export function FoodServiceManagementPage() {
   const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
   const [serviceFormValues, setServiceFormValues] =
     useState<ServiceItemFormValues>(emptyServiceForm);
+  const [statusEditingService, setStatusEditingService] =
+    useState<ServiceItem | null>(null);
+  const [serviceStatusDraft, setServiceStatusDraft] =
+    useState<ServiceItemStatus>("ACTIVE");
   const [orderFormVisible, setOrderFormVisible] = useState(false);
   const [orderFormValues, setOrderFormValues] =
     useState<FoodOrderFormValues>(emptyOrderForm);
@@ -720,6 +740,18 @@ export function FoodServiceManagementPage() {
     setServiceFormMode("hidden");
   }
 
+  function openServiceStatusForm(serviceItem: ServiceItem) {
+    setStatusEditingService(serviceItem);
+    setServiceStatusDraft(serviceItem.status);
+    setError(null);
+    setSuccess(null);
+  }
+
+  function closeServiceStatusForm() {
+    setStatusEditingService(null);
+    setServiceStatusDraft("ACTIVE");
+  }
+
   function openOrderForm() {
     setOrderFormValues(emptyOrderForm);
     setOrderFormVisible(true);
@@ -780,6 +812,7 @@ export function FoodServiceManagementPage() {
     setSuccess(null);
     try {
       await updateServiceItemStatus(serviceItem.id, status);
+      closeServiceStatusForm();
       setSuccess(`Đã cập nhật ${serviceItem.name}.`);
       await loadServiceItems(serviceFilters);
     } catch (statusError) {
@@ -857,7 +890,7 @@ export function FoodServiceManagementPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Quản lý dịch vụ</p>
-          <h2 className="mt-1 text-2xl font-semibold">Food Service</h2>
+          <h2 className="mt-1 text-2xl font-semibold">Dịch vụ</h2>
         </div>
         <div className="flex gap-2">
           <button
@@ -1019,15 +1052,75 @@ export function FoodServiceManagementPage() {
           </form>
 
           {serviceFormMode !== "hidden" && (
-            <ServiceForm
-              mode={serviceFormMode}
-              saving={saving}
-              statuses={serviceStatuses}
-              values={serviceFormValues}
-              onCancel={closeServiceForm}
-              onChange={setServiceFormValues}
-              onSubmit={submitServiceForm}
-            />
+            <FormModal
+              title={serviceFormMode === "create" ? "Thêm dịch vụ" : "Sửa dịch vụ"}
+              onClose={closeServiceForm}
+            >
+              <ServiceForm
+                mode={serviceFormMode}
+                saving={saving}
+                statuses={serviceStatuses}
+                values={serviceFormValues}
+                onCancel={closeServiceForm}
+                onChange={setServiceFormValues}
+                onSubmit={submitServiceForm}
+              />
+            </FormModal>
+          )}
+
+          {statusEditingService && (
+            <FormModal
+              title="Cập nhật trạng thái dịch vụ"
+              onClose={closeServiceStatusForm}
+            >
+              <form
+                className="grid gap-4 bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void changeServiceStatus(
+                    statusEditingService,
+                    serviceStatusDraft
+                  );
+                }}
+              >
+                <label className="grid gap-2 text-sm">
+                  <span className="text-muted-foreground">Trạng thái mới</span>
+                  <select
+                    className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+                    value={serviceStatusDraft}
+                    onChange={(event) =>
+                      setServiceStatusDraft(
+                        event.target.value as ServiceItemStatus
+                      )
+                    }
+                  >
+                    {serviceStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {serviceStatusLabels[status] ?? status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-end gap-2">
+                  <button
+                    className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+                    disabled={saving}
+                    type="submit"
+                  >
+                    <CheckCircle2 className="size-4" />
+                    Lưu
+                  </button>
+                  <button
+                    className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    type="button"
+                    onClick={closeServiceStatusForm}
+                  >
+                    <X className="size-4" />
+                    Hủy
+                  </button>
+                </div>
+              </form>
+            </FormModal>
           )}
 
           <div className="p-4">
@@ -1048,10 +1141,9 @@ export function FoodServiceManagementPage() {
                     key={serviceItem.id}
                     saving={saving}
                     serviceItem={serviceItem}
-                    statuses={serviceStatuses}
                     onDeactivate={deactivateCurrentService}
                     onEdit={openEditServiceForm}
-                    onStatusChange={changeServiceStatus}
+                    onStatusEdit={openServiceStatusForm}
                   />
                 ))}
               </div>
@@ -1124,13 +1216,15 @@ export function FoodServiceManagementPage() {
           </form>
 
           {orderFormVisible && (
-            <OrderForm
-              saving={saving}
-              values={orderFormValues}
-              onCancel={closeOrderForm}
-              onChange={setOrderFormValues}
-              onSubmit={submitOrderForm}
-            />
+            <FormModal title="Tạo đơn gọi món" onClose={closeOrderForm}>
+              <OrderForm
+                saving={saving}
+                values={orderFormValues}
+                onCancel={closeOrderForm}
+                onChange={setOrderFormValues}
+                onSubmit={submitOrderForm}
+              />
+            </FormModal>
           )}
 
           <div className="overflow-x-auto">
@@ -1143,7 +1237,6 @@ export function FoodServiceManagementPage() {
                   <th className="px-4 py-3 font-medium">Liên kết</th>
                   <th className="px-4 py-3 font-medium">Tổng tiền</th>
                   <th className="px-4 py-3 font-medium">Trạng thái</th>
-                  <th className="px-4 py-3 font-medium">Cập nhật</th>
                   <th className="px-4 py-3 text-right font-medium">Thao tác</th>
                 </tr>
               </thead>
@@ -1152,7 +1245,7 @@ export function FoodServiceManagementPage() {
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-muted-foreground"
-                      colSpan={8}
+                      colSpan={7}
                     >
                       Đang tải đơn gọi món
                     </td>
@@ -1162,7 +1255,7 @@ export function FoodServiceManagementPage() {
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-muted-foreground"
-                      colSpan={8}
+                      colSpan={7}
                     >
                       Không có đơn phù hợp bộ lọc
                     </td>
@@ -1213,43 +1306,29 @@ export function FoodServiceManagementPage() {
                         <OrderStatusBadge status={order.status} />
                       </td>
                       <td className="px-4 py-4">
-                        <select
-                          className="h-9 rounded-md border bg-background px-2 text-sm outline-none transition focus:border-primary disabled:opacity-60"
-                          disabled={
-                            saving ||
-                            order.status === "COMPLETED" ||
-                            order.status === "CANCELLED"
-                          }
-                          value={order.status}
-                          onChange={(event) =>
-                            changeOrderStatus(
-                              order,
-                              event.target.value as FoodOrderStatus
-                            )
-                          }
-                        >
-                          {orderStatuses.map((status) => (
-                            <option key={status} value={status}>
-                              {orderStatusLabels[status] ?? status}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-4">
                         <div className="flex justify-end gap-2">
-                          <button
-                            className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10 disabled:opacity-50"
-                            disabled={
-                              saving ||
-                              order.status === "COMPLETED" ||
-                              order.status === "CANCELLED"
-                            }
-                            title="Hủy đơn"
-                            type="button"
-                            onClick={() => cancelCurrentOrder(order)}
-                          >
-                            <CircleAlert className="size-4" />
-                          </button>
+                          {order.status === "PREPARING" ? (
+                            <button
+                              className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                              disabled={saving}
+                              title="Hoàn tất đơn"
+                              type="button"
+                              onClick={() => changeOrderStatus(order, "COMPLETED")}
+                            >
+                              <CheckCircle2 className="size-4" />
+                            </button>
+                          ) : null}
+                          {order.status === "PENDING" || order.status === "PREPARING" ? (
+                            <button
+                              className="inline-flex size-9 items-center justify-center rounded-md border border-destructive/40 text-red-200 transition hover:bg-destructive/10 disabled:opacity-50"
+                              disabled={saving}
+                              title="Hủy đơn"
+                              type="button"
+                              onClick={() => cancelCurrentOrder(order)}
+                            >
+                              <CircleAlert className="size-4" />
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>

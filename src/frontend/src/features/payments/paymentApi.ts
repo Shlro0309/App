@@ -2,29 +2,14 @@ import { httpClient } from "@/api/httpClient";
 import type {
   PageResponse,
   Payment,
-  PaymentCheckoutValues,
   PaymentFilters,
   PaymentStatus,
   CustomerTopUpValues,
 } from "./types";
 
-function optionalNumber(value: string) {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? Number(trimmed) : undefined;
-}
-
 function optionalText(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function toCheckoutPayload(values: PaymentCheckoutValues) {
-  return {
-    customerId: optionalNumber(values.customerId),
-    playSessionId: optionalNumber(values.playSessionId),
-    orderId: optionalNumber(values.orderId),
-    paymentMethod: optionalText(values.paymentMethod),
-  };
 }
 
 export async function getPayments(filters: PaymentFilters) {
@@ -51,14 +36,6 @@ export async function getPaymentStatuses() {
 
 export async function getPaymentMethods() {
   const response = await httpClient.get<string[]>("/payments/methods");
-  return response.data;
-}
-
-export async function checkoutPayment(values: PaymentCheckoutValues) {
-  const response = await httpClient.post<Payment>(
-    "/payments/checkout",
-    toCheckoutPayload(values)
-  );
   return response.data;
 }
 

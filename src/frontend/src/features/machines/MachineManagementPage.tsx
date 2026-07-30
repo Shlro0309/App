@@ -29,6 +29,7 @@ import {
   updateMachineArea,
   updateMachineStatus,
 } from "./machineApi";
+import { FormModal } from "@/components/FormModal";
 import type {
   Area,
   AreaFormValues,
@@ -389,20 +390,18 @@ type MachineCardProps = {
   canManageMachines: boolean;
   machine: Machine;
   saving: boolean;
-  statuses: MachineStatus[];
   onDelete: (machine: Machine) => void;
   onEdit: (machine: Machine) => void;
-  onStatusChange: (machine: Machine, status: MachineStatus) => void;
+  onStatusEdit: (machine: Machine) => void;
 };
 
 function MachineCard({
   canManageMachines,
   machine,
   saving,
-  statuses,
   onDelete,
   onEdit,
-  onStatusChange,
+  onStatusEdit,
 }: MachineCardProps) {
   return (
     <article className="grid min-h-[220px] gap-4 rounded-md border bg-background p-4 shadow-sm">
@@ -431,27 +430,15 @@ function MachineCard({
 
       {canManageMachines ? (
         <div className="mt-auto flex items-center justify-between gap-2">
-          <select
-            className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs outline-none transition focus:border-primary disabled:opacity-60"
+          <button
+            className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-60"
             disabled={saving}
-            value={machine.status}
-            onChange={(event) =>
-              onStatusChange(machine, event.target.value as MachineStatus)
-            }
+            type="button"
+            onClick={() => onStatusEdit(machine)}
           >
-            {statuses.map((status) => (
-              <option
-                disabled={
-                  machine.status === "PLAYING" &&
-                  (status === "RESERVED" || status === "MAINTENANCE")
-                }
-                key={status}
-                value={status}
-              >
-                {statusLabels[status] ?? status}
-              </option>
-            ))}
-          </select>
+            <RefreshCw className="size-4" />
+            Trạng thái
+          </button>
           <div className="flex gap-2">
             <button
               className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -499,6 +486,8 @@ export function MachineManagementPage() {
   const [editingAreaId, setEditingAreaId] = useState<number | null>(null);
   const [machineFormValues, setMachineFormValues] = useState<MachineFormValues>(emptyMachineForm);
   const [areaFormValues, setAreaFormValues] = useState<AreaFormValues>(emptyAreaForm);
+  const [statusEditingMachine, setStatusEditingMachine] = useState<Machine | null>(null);
+  const [statusDraft, setStatusDraft] = useState<MachineStatus>("AVAILABLE");
 
   const machines = useMemo(() => page?.content ?? [], [page]);
   const selectedArea = useMemo(
@@ -660,6 +649,18 @@ export function MachineManagementPage() {
     setAreaFormMode("hidden");
   }
 
+  function openStatusForm(machine: Machine) {
+    setStatusEditingMachine(machine);
+    setStatusDraft(machine.status);
+    setError(null);
+    setSuccess(null);
+  }
+
+  function closeStatusForm() {
+    setStatusEditingMachine(null);
+    setStatusDraft("AVAILABLE");
+  }
+
   async function submitMachineForm() {
     setSaving(true);
     setError(null);
@@ -732,6 +733,7 @@ export function MachineManagementPage() {
     setSuccess(null);
     try {
       await updateMachineStatus(machine.id, status);
+      closeStatusForm();
       setSuccess(`Đã cập nhật trạng thái ${machine.name}.`);
       await reloadWorkspace(filters);
     } catch (statusError) {
@@ -861,27 +863,91 @@ export function MachineManagementPage() {
         </form>
 
         {areaFormMode !== "hidden" ? (
-          <AreaForm
-            mode={areaFormMode}
-            saving={saving}
-            values={areaFormValues}
-            onCancel={closeAreaForm}
-            onChange={setAreaFormValues}
-            onSubmit={submitAreaForm}
-          />
+          <FormModal
+            title={areaFormMode === "create" ? "Thêm khu vực" : "Sửa khu vực"}
+            onClose={closeAreaForm}
+          >
+            <AreaForm
+              mode={areaFormMode}
+              saving={saving}
+              values={areaFormValues}
+              onCancel={closeAreaForm}
+              onChange={setAreaFormValues}
+              onSubmit={submitAreaForm}
+            />
+          </FormModal>
         ) : null}
 
         {machineFormMode !== "hidden" ? (
-          <MachineForm
-            areas={areas}
-            mode={machineFormMode}
-            saving={saving}
-            statuses={statuses}
-            values={machineFormValues}
-            onCancel={closeMachineForm}
-            onChange={setMachineFormValues}
-            onSubmit={submitMachineForm}
-          />
+          <FormModal
+            title={machineFormMode === "create" ? "Thêm máy trạm" : "Sửa máy trạm"}
+            onClose={closeMachineForm}
+          >
+            <MachineForm
+              areas={areas}
+              mode={machineFormMode}
+              saving={saving}
+              statuses={statuses}
+              values={machineFormValues}
+              onCancel={closeMachineForm}
+              onChange={setMachineFormValues}
+              onSubmit={submitMachineForm}
+            />
+          </FormModal>
+        ) : null}
+
+        {statusEditingMachine ? (
+          <FormModal title="Cập nhật trạng thái máy" onClose={closeStatusForm}>
+            <form
+              className="grid gap-4 bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void changeStatus(statusEditingMachine, statusDraft);
+              }}
+            >
+              <label className="grid gap-2 text-sm">
+                <span className="text-muted-foreground">Trạng thái mới</span>
+                <select
+                  className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
+                  value={statusDraft}
+                  onChange={(event) =>
+                    setStatusDraft(event.target.value as MachineStatus)
+                  }
+                >
+                  {statuses.map((status) => (
+                    <option
+                      disabled={
+                        statusEditingMachine.status === "PLAYING" &&
+                        (status === "RESERVED" || status === "MAINTENANCE")
+                      }
+                      key={status}
+                      value={status}
+                    >
+                      {statusLabels[status] ?? status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end gap-2">
+                <button
+                  className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+                  disabled={saving}
+                  type="submit"
+                >
+                  <CheckCircle2 className="size-4" />
+                  Lưu
+                </button>
+                <button
+                  className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  type="button"
+                  onClick={closeStatusForm}
+                >
+                  <X className="size-4" />
+                  Hủy
+                </button>
+              </div>
+            </form>
+          </FormModal>
         ) : null}
 
         {error ? (
@@ -1001,10 +1067,9 @@ export function MachineManagementPage() {
                           key={machine.id}
                           machine={machine}
                           saving={saving}
-                          statuses={statuses}
                           onDelete={removeMachine}
                           onEdit={openEditMachineForm}
-                          onStatusChange={changeStatus}
+                          onStatusEdit={openStatusForm}
                         />
                       ))}
                     </div>
@@ -1030,10 +1095,9 @@ export function MachineManagementPage() {
                             key={machine.id}
                             machine={machine}
                             saving={saving}
-                            statuses={statuses}
                             onDelete={removeMachine}
                             onEdit={openEditMachineForm}
-                            onStatusChange={changeStatus}
+                            onStatusEdit={openStatusForm}
                           />
                         ))}
                       </div>

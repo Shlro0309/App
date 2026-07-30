@@ -71,36 +71,6 @@ BEGIN TRY
         VALUES (N'demo_customer_03', @password, N'Le Gia Huy', '0901000103', N'huy.demo@cybergame.local', @customerRole, 1, DATEADD(day, -9, @now));
     END;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'admin_demo')
-    BEGIN
-        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
-        VALUES (N'admin_demo', @password, N'Admin Demo', '0902000001', N'admin.demo.smoke@cybergame.local', @adminRole, 1, @now);
-    END;
-
-    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'employee_demo')
-    BEGIN
-        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
-        VALUES (N'employee_demo', @password, N'Employee Demo', '0902000002', N'employee.demo.smoke@cybergame.local', @employeeRole, 1, @now);
-    END;
-
-    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'customer_demo')
-    BEGIN
-        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
-        VALUES (N'customer_demo', @password, N'Customer Demo', '0902000003', N'customer.demo.smoke@cybergame.local', @customerRole, 1, @now);
-    END;
-
-    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'demo_user')
-    BEGIN
-        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
-        VALUES (N'demo_user', @password, N'Demo User', '0902000004', N'demo.user.smoke@cybergame.local', @customerRole, 1, @now);
-    END;
-
-    IF NOT EXISTS (SELECT 1 FROM dbo.nguoiDung WHERE tenDangNhap = N'zero_customer')
-    BEGIN
-        INSERT INTO dbo.nguoiDung (tenDangNhap, matKhau, hoTen, soDienThoai, email, maQuyen, trangThai, ngayTao)
-        VALUES (N'zero_customer', @password, N'Zero Customer', '0902000005', N'zero.customer.smoke@cybergame.local', @customerRole, 1, @now);
-    END;
-
     UPDATE dbo.nguoiDung
     SET matKhau = @password,
         trangThai = 1
@@ -109,12 +79,7 @@ BEGIN TRY
         N'demo_employee',
         N'demo_customer_01',
         N'demo_customer_02',
-        N'demo_customer_03',
-        N'admin_demo',
-        N'employee_demo',
-        N'customer_demo',
-        N'demo_user',
-        N'zero_customer'
+        N'demo_customer_03'
     );
 
     DECLARE @employeeUser int = (SELECT maNguoiDung FROM dbo.nguoiDung WHERE tenDangNhap = N'demo_employee');
@@ -122,13 +87,6 @@ BEGIN TRY
     BEGIN
         INSERT INTO dbo.nhanVien (maNguoiDung, caLamViec, ngayVaoLam)
         VALUES (@employeeUser, N'Ca chiều', DATEADD(day, -18, CONVERT(date, @now)));
-    END;
-
-    DECLARE @smokeEmployeeUser int = (SELECT maNguoiDung FROM dbo.nguoiDung WHERE tenDangNhap = N'employee_demo');
-    IF NOT EXISTS (SELECT 1 FROM dbo.nhanVien WHERE maNguoiDung = @smokeEmployeeUser)
-    BEGIN
-        INSERT INTO dbo.nhanVien (maNguoiDung, caLamViec, ngayVaoLam)
-        VALUES (@smokeEmployeeUser, N'Demo', CONVERT(date, @now));
     END;
 
     INSERT INTO dbo.khachHang (maNguoiDung, soDu, trangThaiOnline, ngayDangKy)
@@ -147,24 +105,6 @@ BEGIN TRY
     SELECT u.maNguoiDung, 90000, 0, DATEADD(day, -9, @now)
     FROM dbo.nguoiDung u
     WHERE u.tenDangNhap = N'demo_customer_03'
-      AND NOT EXISTS (SELECT 1 FROM dbo.khachHang c WHERE c.maNguoiDung = u.maNguoiDung);
-
-    INSERT INTO dbo.khachHang (maNguoiDung, soDu, trangThaiOnline, ngayDangKy)
-    SELECT u.maNguoiDung, 120000, 0, @now
-    FROM dbo.nguoiDung u
-    WHERE u.tenDangNhap = N'customer_demo'
-      AND NOT EXISTS (SELECT 1 FROM dbo.khachHang c WHERE c.maNguoiDung = u.maNguoiDung);
-
-    INSERT INTO dbo.khachHang (maNguoiDung, soDu, trangThaiOnline, ngayDangKy)
-    SELECT u.maNguoiDung, 120000, 0, @now
-    FROM dbo.nguoiDung u
-    WHERE u.tenDangNhap = N'demo_user'
-      AND NOT EXISTS (SELECT 1 FROM dbo.khachHang c WHERE c.maNguoiDung = u.maNguoiDung);
-
-    INSERT INTO dbo.khachHang (maNguoiDung, soDu, trangThaiOnline, ngayDangKy)
-    SELECT u.maNguoiDung, 0, 0, @now
-    FROM dbo.nguoiDung u
-    WHERE u.tenDangNhap = N'zero_customer'
       AND NOT EXISTS (SELECT 1 FROM dbo.khachHang c WHERE c.maNguoiDung = u.maNguoiDung);
 
     IF NOT EXISTS (SELECT 1 FROM dbo.khuVuc WHERE tenKhuVuc = N'Khu Alpha')
