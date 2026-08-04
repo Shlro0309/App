@@ -22,6 +22,13 @@ $env:JAVA_HOME = $javaHome
 $env:MAVEN_HOME = $mavenHome
 $env:Path = "$javaHome\bin;$mavenHome\bin;$env:Path"
 
+$cleanRequiredGoals = @('compile', 'test', 'package', 'verify', 'install', 'spring-boot:run')
+$hasCleanGoal = $MavenArgs -contains 'clean'
+$needsCleanGoal = $MavenArgs | Where-Object { $cleanRequiredGoals -contains $_ } | Select-Object -First 1
+if ($needsCleanGoal -and -not $hasCleanGoal) {
+    $MavenArgs = @('clean') + $MavenArgs
+}
+
 Push-Location $backendDir
 try {
     & $mavenCmd @MavenArgs

@@ -59,7 +59,9 @@ test.describe("account management role access", () => {
 
     await expect(page.locator("thead").getByText("Vai trò")).toBeVisible();
     await expect(page.locator("tbody span").getByText("Khách hàng")).toBeVisible();
-    await expect(page.locator("tbody select").first()).toBeVisible();
+    await page.getByRole("button", { name: "Sửa tài khoản" }).first().click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Vai trò" })).toBeVisible();
   });
 
   test("employee cannot open reports route", async ({ page }) => {
