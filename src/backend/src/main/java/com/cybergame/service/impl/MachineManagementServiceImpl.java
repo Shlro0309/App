@@ -14,7 +14,6 @@ import com.cybergame.entity.enums.MachineStatus;
 import com.cybergame.entity.enums.PlaySessionStatus;
 import com.cybergame.exception.BusinessException;
 import com.cybergame.exception.ResourceNotFoundException;
-import com.cybergame.mapper.MachineMapper;
 import com.cybergame.repository.AreaRepository;
 import com.cybergame.repository.MachineRepository;
 import com.cybergame.repository.MachineSpecifications;
@@ -49,7 +48,6 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     private final MachineRepository machineRepository;
     private final AreaRepository areaRepository;
     private final PlaySessionRepository playSessionRepository;
-    private final MachineMapper machineMapper;
     private final RealtimeEventPublisher realtimeEventPublisher;
     private final EntityManager entityManager;
 
