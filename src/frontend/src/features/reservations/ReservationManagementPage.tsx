@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
 import { FormModal } from "@/components/FormModal";
+import { CountUpValue } from "@/components/ui/CountUpValue";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import {
   cancelReservation,
@@ -183,7 +184,7 @@ function ReservationForm({
   }
 
   return (
-    <div className="border-b bg-muted/20">
+    <div className="border-b border-sky-200/10 bg-muted/20">
       <form className="grid gap-4 p-4 lg:grid-cols-4" onSubmit={handleSubmit}>
         <label className="grid gap-2 text-sm">
           <span className="text-muted-foreground">Mã khách hàng</span>
@@ -293,10 +294,10 @@ function ReservationForm({
             return (
               <button
                 className={[
-                  "rounded-md border p-3 text-left text-sm transition",
+                  "glacier-card rounded-md p-3 text-left text-sm transition hover:-translate-y-0.5",
                   selected
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "bg-background text-muted-foreground hover:border-primary/60 hover:text-foreground",
+                    ? "border-primary bg-primary/10 text-foreground shadow-[0_0_18px_rgba(78,222,163,0.14)]"
+                    : "text-muted-foreground hover:border-primary/60 hover:text-foreground",
                 ].join(" ")}
                 key={machine.id}
                 type="button"
@@ -590,29 +591,33 @@ export function ReservationManagementPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-6">
-        <div className="rounded-md border bg-background p-4">
+        <div className="glacier-card rounded-md p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tổng đặt máy</span>
+            <span className="label-caps text-muted-foreground">Tổng đặt máy</span>
             <CalendarClock className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">{page?.totalElements ?? 0}</p>
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue value={page?.totalElements ?? 0} format={(value) => String(Math.round(value))} />
+          </p>
         </div>
         {statusSummary.map((item) => (
-          <div className="rounded-md border bg-background p-4" key={item.status}>
+          <div className="glacier-card rounded-md p-4" key={item.status}>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
+              <span className="label-caps text-muted-foreground">
                 {statusLabels[item.status]}
               </span>
               <Clock3 className="size-4 text-primary" />
             </div>
-            <p className="text-2xl font-semibold">{item.count}</p>
+            <p className="metric-number text-2xl font-semibold">
+              <CountUpValue value={item.count} format={(value) => String(Math.round(value))} />
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-md border bg-background">
+      <div className="glass-panel overflow-hidden rounded-md">
         <form
-          className="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[1fr_160px_180px_auto]"
+          className="grid gap-3 border-b border-sky-200/10 bg-muted/20 p-4 lg:grid-cols-[1fr_160px_180px_auto]"
           onSubmit={applyFilters}
         >
           <label className="relative">
@@ -742,7 +747,7 @@ export function ReservationManagementPage() {
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] border-collapse text-sm">
-            <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
+            <thead className="bg-white/[0.04] text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Mã</th>
                 <th className="px-4 py-3 font-medium">Khách hàng</th>
@@ -779,7 +784,7 @@ export function ReservationManagementPage() {
 
               {!loading &&
                 reservations.map((reservation) => (
-                  <tr className="border-t" key={reservation.id}>
+                  <tr className="border-t border-white/10 transition hover:bg-white/[0.03]" key={reservation.id}>
                     <td className="px-4 py-4 font-medium">
                       #{reservation.id}
                     </td>

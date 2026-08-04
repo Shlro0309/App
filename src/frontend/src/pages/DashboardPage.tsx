@@ -12,6 +12,7 @@ import {
   ShoppingBasket,
   Timer,
   WalletCards,
+  type LucideIcon,
 } from "lucide-react";
 import {
   Area,
@@ -29,6 +30,7 @@ import type {
   DashboardStatusCount,
 } from "@/features/dashboard/types";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
+import { CountUpValue } from "@/components/ui/CountUpValue";
 
 const machineStatusLabels: Record<string, string> = {
   AVAILABLE: "Trống",
@@ -48,6 +50,35 @@ const methodLabels: Record<string, string> = {
   CASH: "Tiền mặt",
   BANK_TRANSFER: "Chuyển khoản",
   ACCOUNT_BALANCE: "Trừ số dư tài khoản",
+};
+
+const statusVisuals: Record<
+  string,
+  { icon: LucideIcon; meter: string; shell: string }
+> = {
+  AVAILABLE: {
+    icon: Monitor,
+    meter: "bg-slate-400",
+    shell: "border-slate-400/35 bg-slate-400/10 text-slate-200",
+  },
+  RESERVED: {
+    icon: CalendarClock,
+    meter: "bg-sky-300",
+    shell:
+      "border-sky-300/45 bg-sky-300/10 text-sky-100 shadow-[0_0_18px_rgba(123,209,250,0.14)]",
+  },
+  PLAYING: {
+    icon: Activity,
+    meter: "bg-primary",
+    shell:
+      "border-primary/45 bg-primary/10 text-primary shadow-[0_0_18px_rgba(78,222,163,0.16)]",
+  },
+  MAINTENANCE: {
+    icon: AlertTriangle,
+    meter: "bg-amber-300",
+    shell:
+      "border-amber-300/45 bg-amber-300/10 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.16)]",
+  },
 };
 
 function getErrorMessage(error: unknown) {
@@ -128,17 +159,30 @@ function StatusMeter({
     <div className="space-y-3">
       {items.map((item) => {
         const percent = total > 0 ? Math.round((item.count / total) * 100) : 0;
+        const visual = statusVisuals[item.status] ?? statusVisuals.AVAILABLE;
+        const Icon = visual.icon;
         return (
-          <div key={item.status} className="grid gap-1.5">
+          <div key={item.status} className="grid gap-2 rounded-md border border-white/5 bg-white/[0.025] p-3">
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">
-                {labels[item.status] ?? item.status}
-              </span>
-              <span className="font-medium">{item.count}</span>
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className={`grid size-8 shrink-0 place-items-center rounded-md border ${visual.shell}`}
+                >
+                  <Icon className="size-4" />
+                </span>
+                <span className="truncate text-muted-foreground">
+                  {labels[item.status] ?? item.status}
+                </span>
+              </div>
+              <CountUpValue
+                className="metric-number font-semibold"
+                value={item.count}
+                format={(value) => String(Math.round(value))}
+              />
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-primary"
+                className={`h-full rounded-full ${visual.meter}`}
                 style={{ width: `${percent}%` }}
               />
             </div>
@@ -154,21 +198,58 @@ function MetricCard({
   value,
   detail,
   icon: Icon,
+  formatValue,
 }: {
   label: string;
-  value: string;
+  value: number;
   detail: string;
   icon: typeof Receipt;
+  formatValue?: (value: number) => string;
 }) {
   return (
-    <div className="rounded-lg border bg-background/75 p-4 shadow-sm backdrop-blur">
+    <div className="glacier-card rounded-lg p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <Icon className="size-5 shrink-0 text-primary" />
+        <span className="label-caps text-muted-foreground">{label}</span>
+        <span className="grid size-9 shrink-0 place-items-center rounded-md border border-primary/30 bg-primary/10 text-primary shadow-[0_0_18px_rgba(78,222,163,0.14)]">
+          <Icon className="size-5" />
+        </span>
       </div>
-      <p className="text-2xl font-semibold leading-tight">{value}</p>
+      <p className="metric-number text-2xl font-semibold leading-tight">
+        <CountUpValue
+          value={value}
+          format={formatValue ?? ((next) => String(Math.round(next)))}
+        />
+      </p>
       <p className="mt-2 text-xs text-muted-foreground">{detail}</p>
     </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <section className="mx-auto grid max-w-7xl gap-5">
+      <div className="grid gap-2">
+        <div className="skeleton-line h-4 w-28" />
+        <div className="skeleton-line h-8 w-72 max-w-full" />
+        <div className="skeleton-line h-4 w-48" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, index) => (
+          <div className="glacier-card grid gap-4 rounded-lg p-4" key={index}>
+            <div className="flex items-center justify-between">
+              <div className="skeleton-line h-4 w-28" />
+              <div className="skeleton-line size-9" />
+            </div>
+            <div className="skeleton-line h-8 w-36" />
+            <div className="skeleton-line h-3 w-44 max-w-full" />
+          </div>
+        ))}
+      </div>
+      <div className="glass-panel grid min-h-[300px] gap-4 rounded-lg p-4">
+        <div className="skeleton-line h-5 w-44" />
+        <div className="skeleton-line h-full min-h-56" />
+      </div>
+    </section>
   );
 }
 
@@ -216,14 +297,7 @@ export function DashboardPage() {
   );
 
   if (loading && !overview) {
-    return (
-      <section className="mx-auto grid min-h-[50vh] max-w-7xl place-items-center">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <RefreshCw className="size-5 animate-spin" />
-          <span>Đang tải tổng quan</span>
-        </div>
-      </section>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -260,59 +334,61 @@ export function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               detail={`${overview.paidInvoicesToday} hóa đơn đã thu hôm nay`}
+              formatValue={formatCurrency}
               icon={Receipt}
               label="Doanh thu hôm nay"
-              value={formatCurrency(overview.todayRevenue)}
+              value={overview.todayRevenue}
             />
             <MetricCard
               detail={`${overview.completedPlaySessionsToday} phiên hoàn tất hôm nay`}
               icon={Timer}
               label="Phiên đang chơi"
-              value={overview.activePlaySessions.toString()}
+              value={overview.activePlaySessions}
             />
             <MetricCard
               detail={`${overview.availableMachines}/${overview.totalMachines} máy đang trống`}
               icon={Monitor}
               label="Máy hoạt động"
-              value={overview.playingMachines.toString()}
+              value={overview.playingMachines}
             />
             <MetricCard
               detail={`${overview.confirmedReservationsToday} lịch đã xác nhận hôm nay`}
               icon={CalendarClock}
               label="Đặt máy hôm nay"
-              value={overview.todayReservations.toString()}
+              value={overview.todayReservations}
             />
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               detail="Tổng doanh thu đã thanh toán trong 7 ngày"
+              formatValue={formatCurrency}
               icon={WalletCards}
               label="Doanh thu 7 ngày"
-              value={formatCurrency(overview.weekRevenue)}
+              value={overview.weekRevenue}
             />
             <MetricCard
               detail="Hóa đơn đang chờ xử lý"
               icon={Clock3}
               label="Chờ thanh toán"
-              value={overview.pendingInvoices.toString()}
+              value={overview.pendingInvoices}
             />
             <MetricCard
               detail={`${overview.completedOrdersToday} đơn hoàn tất hôm nay`}
               icon={ShoppingBasket}
               label="Đơn gọi món chờ"
-              value={overview.pendingOrders.toString()}
+              value={overview.pendingOrders}
             />
             <MetricCard
               detail={`${overview.lowStockServices} dịch vụ sắp hết hàng`}
               icon={CheckCircle2}
               label="Dịch vụ đang hoạt động"
-              value={overview.activeServices.toString()}
+              value={overview.activeServices}
             />
           </div>
 
-          <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
-            <div className="rounded-lg border bg-background/75 p-4 shadow-sm backdrop-blur">
+          <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
+            <div className="glass-panel rounded-lg p-4">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold">Doanh thu 7 ngày</h3>
@@ -331,7 +407,11 @@ export function DashboardPage() {
                         <stop offset="95%" stopColor="#22c55e" stopOpacity={0.03} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <CartesianGrid
+                      stroke="rgba(255,255,255,0.05)"
+                      strokeDasharray="3 3"
+                      vertical={false}
+                    />
                     <XAxis dataKey="date" tickLine={false} />
                     <YAxis
                       tickFormatter={(value) =>
@@ -343,6 +423,17 @@ export function DashboardPage() {
                       width={56}
                     />
                     <Tooltip
+                      contentStyle={{
+                        background: "rgba(13, 22, 42, 0.94)",
+                        border: "1px solid rgba(123, 209, 250, 0.35)",
+                        borderRadius: 8,
+                        color: "#dae2fd",
+                      }}
+                      cursor={{
+                        stroke: "#7bd1fa",
+                        strokeDasharray: "4 4",
+                        strokeWidth: 1,
+                      }}
                       formatter={(value, name) => [
                         name === "revenue"
                           ? formatCurrency(Number(value))
@@ -363,14 +454,14 @@ export function DashboardPage() {
             </div>
 
             <div className="grid gap-5">
-              <div className="rounded-lg border bg-background/75 p-4 shadow-sm backdrop-blur">
+              <div className="glass-panel rounded-lg p-4">
                 <h3 className="mb-4 font-semibold">Trạng thái máy</h3>
                 <StatusMeter
                   items={overview.machineStatuses}
                   labels={machineStatusLabels}
                 />
               </div>
-              <div className="rounded-lg border bg-background/75 p-4 shadow-sm backdrop-blur">
+              <div className="glass-panel rounded-lg p-4">
                 <h3 className="mb-4 font-semibold">Trạng thái hóa đơn</h3>
                 <StatusMeter
                   items={overview.invoiceStatuses}
@@ -381,7 +472,7 @@ export function DashboardPage() {
           </div>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
-            <div className="rounded-lg border bg-background/75 shadow-sm backdrop-blur">
+            <div className="glass-panel rounded-lg">
               <div className="border-b p-4">
                 <h3 className="font-semibold">Phiên đang hoạt động</h3>
               </div>
@@ -416,7 +507,7 @@ export function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border bg-background/75 shadow-sm backdrop-blur">
+            <div className="glass-panel rounded-lg">
               <div className="border-b p-4">
                 <h3 className="font-semibold">Thanh toán gần đây</h3>
               </div>

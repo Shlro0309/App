@@ -9,6 +9,7 @@ import com.cybergame.dto.response.MachineResponse;
 import com.cybergame.dto.response.MessageResponse;
 import com.cybergame.entity.Area;
 import com.cybergame.entity.Machine;
+import com.cybergame.entity.PlaySession;
 import com.cybergame.entity.enums.MachineStatus;
 import com.cybergame.entity.enums.PlaySessionStatus;
 import com.cybergame.exception.BusinessException;
@@ -34,6 +35,9 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -57,14 +61,20 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 .and(MachineSpecifications.hasArea(areaId))
                 .and(MachineSpecifications.hasStatus(status));
 
-        return machineRepository.findAll(specification, pageable)
-                .map(machineMapper::toResponse);
+        Page<Machine> machinePage = machineRepository.findAll(specification, pageable);
+        Map<Integer, PlaySession> activeSessions = findActiveSessionsByMachine(machinePage.getContent());
+
+        return machinePage.map(machine -> toMachineResponse(machine, activeSessions.get(machine.getId())));
     }
 
     @Override
     @Transactional(readOnly = true)
     public MachineResponse getMachine(Integer id) {
-        return machineMapper.toResponse(getMachineById(id));
+        Machine machine = getMachineById(id);
+        PlaySession activeSession = playSessionRepository
+                .findFirstByMachineIdAndStatus(machine.getId(), PlaySessionStatus.ACTIVE)
+                .orElse(null);
+        return toMachineResponse(machine, activeSession);
     }
 
     @Override
@@ -92,7 +102,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 "CREATED",
                 "Đã tạo máy trạm"
         );
-        return machineMapper.toResponse(savedMachine);
+        return toMachineResponse(savedMachine, null);
     }
 
     @Override
@@ -118,7 +128,7 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 "UPDATED",
                 "Đã cập nhật máy trạm"
         );
-        return machineMapper.toResponse(savedMachine);
+        return toMachineResponse(savedMachine, null);
     }
 
     @Override
@@ -134,7 +144,10 @@ public class MachineManagementServiceImpl implements MachineManagementService {
                 savedMachine.getStatus().name(),
                 "Trạng thái máy trạm đã thay đổi"
         );
-        return machineMapper.toResponse(savedMachine);
+        PlaySession activeSession = playSessionRepository
+                .findFirstByMachineIdAndStatus(savedMachine.getId(), PlaySessionStatus.ACTIVE)
+                .orElse(null);
+        return toMachineResponse(savedMachine, activeSession);
     }
 
     @Override
@@ -229,6 +242,47 @@ public class MachineManagementServiceImpl implements MachineManagementService {
     private Machine getMachineById(Integer id) {
         return machineRepository.findDetailedById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy máy trạm"));
+    }
+
+    private Map<Integer, PlaySession> findActiveSessionsByMachine(List<Machine> machines) {
+        List<Integer> machineIds = machines.stream()
+                .map(Machine::getId)
+                .toList();
+
+        if (machineIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return playSessionRepository.findByMachineIdInAndStatus(machineIds, PlaySessionStatus.ACTIVE)
+                .stream()
+                .collect(Collectors.toMap(
+                        playSession -> playSession.getMachine().getId(),
+                        Function.identity(),
+                        (first, ignored) -> first
+                ));
+    }
+
+    private MachineResponse toMachineResponse(Machine machine, PlaySession activeSession) {
+        String currentUsername = activeSession == null
+                ? null
+                : activeSession.getCustomer().getUser().getUsername();
+
+        return new MachineResponse(
+                machine.getId(),
+                machine.getName(),
+                machine.getArea().getId(),
+                machine.getArea().getName(),
+                machine.getCpu(),
+                machine.getGpu(),
+                machine.getRam(),
+                machine.getFps(),
+                machine.getResolution(),
+                machine.getHourlyPrice(),
+                machine.getStatus().name(),
+                activeSession == null ? null : activeSession.getId(),
+                currentUsername,
+                machine.getAddedAt()
+        );
     }
 
     private void validateStatusTransition(Machine machine, MachineStatus nextStatus) {

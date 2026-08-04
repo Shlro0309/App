@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
+import { CountUpValue } from "@/components/ui/CountUpValue";
 import {
   cancelFoodOrder,
   createFoodOrder,
@@ -198,10 +199,10 @@ function FormModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="grid max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-md border bg-background shadow-2xl">
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-          <h3 className="text-sm font-semibold">{title}</h3>
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/65 p-4 backdrop-blur-md">
+      <div className="glass-panel grid max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-lg">
+        <div className="flex items-center justify-between gap-3 border-b border-sky-200/10 px-4 py-3">
+          <h3 className="font-semibold">{title}</h3>
           <button
             className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
             title="Đóng"
@@ -517,7 +518,7 @@ function ServiceCard({
         serviceStatusLabels[serviceItem.status] ?? serviceItem.status
       }`}
       className={[
-        "grid min-h-[420px] gap-4 rounded-md border p-4 transition",
+        "glacier-card grid min-h-[420px] gap-4 rounded-md p-4 transition hover:-translate-y-1 hover:border-primary/35",
         serviceCardClassNames[serviceItem.status],
       ].join(" ")}
     >
@@ -927,7 +928,7 @@ export function FoodServiceManagementPage() {
         </div>
       </div>
 
-      <div className="flex w-fit rounded-md border bg-background p-1">
+      <div className="glass-panel flex w-fit rounded-md p-1">
         <button
           className={[
             "inline-flex h-9 items-center gap-2 rounded px-3 text-sm transition",
@@ -957,34 +958,37 @@ export function FoodServiceManagementPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-md border bg-background p-4">
+        <div className="glacier-card rounded-md p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Dịch vụ</span>
+            <span className="label-caps text-muted-foreground">Dịch vụ</span>
             <Utensils className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">
-            {servicePage?.totalElements ?? 0}
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue value={servicePage?.totalElements ?? 0} format={(value) => String(Math.round(value))} />
           </p>
         </div>
-        <div className="rounded-md border bg-background p-4">
+        <div className="glacier-card rounded-md p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Đơn gọi món</span>
+            <span className="label-caps text-muted-foreground">Đơn gọi món</span>
             <ClipboardList className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">
-            {orderPage?.totalElements ?? 0}
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue value={orderPage?.totalElements ?? 0} format={(value) => String(Math.round(value))} />
           </p>
         </div>
-        <div className="rounded-md border bg-background p-4">
+        <div className="glacier-card rounded-md p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tồn kho hiển thị</span>
+            <span className="label-caps text-muted-foreground">Tồn kho hiển thị</span>
             <PackageCheck className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">
-            {serviceItems.reduce(
-              (total, serviceItem) => total + serviceItem.stockQuantity,
-              0
-            )}
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue
+              value={serviceItems.reduce(
+                (total, serviceItem) => total + serviceItem.stockQuantity,
+                0
+              )}
+              format={(value) => String(Math.round(value))}
+            />
           </p>
         </div>
       </div>
@@ -1004,9 +1008,9 @@ export function FoodServiceManagementPage() {
       )}
 
       {activeTab === "services" ? (
-        <div className="overflow-hidden rounded-md border bg-background">
+        <div className="glass-panel overflow-hidden rounded-md">
           <form
-            className="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[1fr_180px_180px_auto]"
+            className="grid gap-3 border-b border-sky-200/10 bg-muted/20 p-4 lg:grid-cols-[1fr_180px_180px_auto]"
             onSubmit={applyServiceFilters}
           >
             <label className="relative">
@@ -1156,9 +1160,9 @@ export function FoodServiceManagementPage() {
           />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-md border bg-background">
+        <div className="glass-panel overflow-hidden rounded-md">
           <form
-            className="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[1fr_150px_160px_170px_auto]"
+            className="grid gap-3 border-b border-sky-200/10 bg-muted/20 p-4 lg:grid-cols-[1fr_150px_160px_170px_auto]"
             onSubmit={applyOrderFilters}
           >
             <label className="relative">
@@ -1229,7 +1233,7 @@ export function FoodServiceManagementPage() {
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1120px] border-collapse text-sm">
-              <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
+              <thead className="bg-white/[0.04] text-left text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Mã</th>
                   <th className="px-4 py-3 font-medium">Khách hàng</th>
@@ -1263,7 +1267,7 @@ export function FoodServiceManagementPage() {
                 )}
                 {!loading &&
                   foodOrders.map((order) => (
-                    <tr className="border-t" key={order.id}>
+                    <tr className="border-t border-white/10 transition hover:bg-white/[0.03]" key={order.id}>
                       <td className="px-4 py-4">
                         <div className="font-medium">#{order.id}</div>
                         <div className="mt-1 text-xs text-muted-foreground">

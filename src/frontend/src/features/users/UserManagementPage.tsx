@@ -28,7 +28,9 @@ import {
   updateUserRole,
   updateUserStatus,
 } from "./userApi";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormModal } from "@/components/FormModal";
+import { CountUpValue } from "@/components/ui/CountUpValue";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
 import { useAuthStore } from "@/stores/authStore";
 import type {
@@ -303,6 +305,7 @@ export function UserManagementPage() {
   const [formValues, setFormValues] = useState<UserFormValues>(emptyForm);
   const [balanceDrafts, setBalanceDrafts] = useState<Record<number, string>>({});
   const [balanceEditingUser, setBalanceEditingUser] = useState<User | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<User | null>(null);
 
   const users = useMemo(() => page?.content ?? [], [page]);
   const summary = useMemo(() => {
@@ -491,15 +494,18 @@ export function UserManagementPage() {
     }
   }
 
-  async function removeAccount(user: User) {
+  function requestRemoveAccount(user: User) {
     if (!canDeleteUsers) {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Xóa vĩnh viễn tài khoản ${user.username}? Dữ liệu liên quan sẽ bị xóa khỏi database.`
-    );
-    if (!confirmed) {
+    setPendingDeleteUser(user);
+    setError(null);
+    setSuccess(null);
+  }
+
+  async function confirmRemoveAccount() {
+    if (!canDeleteUsers || !pendingDeleteUser) {
       return;
     }
 
@@ -507,8 +513,9 @@ export function UserManagementPage() {
     setError(null);
     setSuccess(null);
     try {
-      await deleteUser(user.id);
-      setSuccess("Đã xóa tài khoản.");
+      await deleteUser(pendingDeleteUser.id);
+      setSuccess(`Đã xóa tài khoản ${pendingDeleteUser.username}.`);
+      setPendingDeleteUser(null);
       await loadUsers(filters);
     } catch (deleteError) {
       setError(getErrorMessage(deleteError));
@@ -580,33 +587,41 @@ export function UserManagementPage() {
       </div>
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border bg-background/75 p-4 shadow-sm backdrop-blur">
+        <div className="glacier-card rounded-lg p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tổng tài khoản</span>
+            <span className="label-caps text-muted-foreground">Tổng tài khoản</span>
             <Users className="size-5 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">{summary.total}</p>
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue value={summary.total} format={(value) => String(Math.round(value))} />
+          </p>
         </div>
-        <div className="rounded-lg border bg-background/75 p-4 shadow-sm backdrop-blur">
+        <div className="glacier-card rounded-lg p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Khách hàng</span>
+            <span className="label-caps text-muted-foreground">Khách hàng</span>
             <UserCog className="size-5 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">{summary.customers}</p>
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue value={summary.customers} format={(value) => String(Math.round(value))} />
+          </p>
         </div>
-        <div className="rounded-lg border bg-background/75 p-4 shadow-sm backdrop-blur">
+        <div className="glacier-card rounded-lg p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Nhân viên</span>
+            <span className="label-caps text-muted-foreground">Nhân viên</span>
             <ShieldAlert className="size-5 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">{summary.employees}</p>
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue value={summary.employees} format={(value) => String(Math.round(value))} />
+          </p>
         </div>
-        <div className="rounded-lg border bg-background/75 p-4 shadow-sm backdrop-blur">
+        <div className="glacier-card rounded-lg p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Đã khóa</span>
+            <span className="label-caps text-muted-foreground">Đã khóa</span>
             <Lock className="size-5 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">{summary.locked}</p>
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue value={summary.locked} format={(value) => String(Math.round(value))} />
+          </p>
         </div>
       </div>
 
@@ -624,7 +639,7 @@ export function UserManagementPage() {
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border bg-background/75 shadow-sm backdrop-blur">
+      <div className="glass-panel overflow-hidden rounded-lg">
         {formVisible ? (
           <FormModal
             title={editingId == null ? "Thêm tài khoản" : "Sửa tài khoản"}
@@ -689,7 +704,7 @@ export function UserManagementPage() {
         ) : null}
 
         <form
-          className="grid gap-3 border-b p-4 lg:grid-cols-[minmax(0,1fr)_180px_180px_auto]"
+          className="grid gap-3 border-b border-sky-200/10 bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_180px_180px_auto]"
           onSubmit={handleSearch}
         >
           <label className="relative">
@@ -739,7 +754,7 @@ export function UserManagementPage() {
               showRoleColumn ? "min-w-[980px]" : "min-w-[860px]",
             ].join(" ")}
           >
-            <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+            <thead className="bg-white/[0.04] text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Tài khoản</th>
                 <th className="px-4 py-3 font-medium">Liên hệ</th>
@@ -753,7 +768,7 @@ export function UserManagementPage() {
                 <th className="px-4 py-3 text-right font-medium">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-white/10">
               {loading ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-muted-foreground" colSpan={tableColumnCount}>
@@ -768,7 +783,7 @@ export function UserManagementPage() {
                 </tr>
               ) : (
                 users.map((user) => (
-                  <tr key={user.id} className="align-top">
+                  <tr key={user.id} className="align-top transition hover:bg-white/[0.03]">
                     <td className="px-4 py-3">
                       <div className="font-medium">{user.username}</div>
                       <div className="text-xs text-muted-foreground">
@@ -859,7 +874,7 @@ export function UserManagementPage() {
                             disabled={saving}
                             title="Xóa tài khoản"
                             type="button"
-                            onClick={() => void removeAccount(user)}
+                            onClick={() => requestRemoveAccount(user)}
                           >
                             <Trash2 className="size-4" />
                           </button>
@@ -900,6 +915,17 @@ export function UserManagementPage() {
           </div>
         </div>
       </div>
+
+      {pendingDeleteUser ? (
+        <ConfirmDialog
+          confirmLabel="Xóa tài khoản"
+          description={`Tài khoản ${pendingDeleteUser.username} sẽ bị xóa vĩnh viễn khỏi database. Thao tác này không thể hoàn tác.`}
+          loading={saving}
+          title="Xác nhận xóa tài khoản"
+          onCancel={() => setPendingDeleteUser(null)}
+          onConfirm={() => void confirmRemoveAccount()}
+        />
+      ) : null}
     </section>
   );
 }

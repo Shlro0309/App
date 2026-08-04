@@ -62,6 +62,11 @@ export async function getMachines(filters: MachineFilters) {
   return response.data;
 }
 
+export async function getMachine(id: number) {
+  const response = await httpClient.get<Machine>(`/machines/${id}`);
+  return response.data;
+}
+
 export async function getMachineAreas() {
   const response = await httpClient.get<Area[]>("/machines/areas");
   return response.data;

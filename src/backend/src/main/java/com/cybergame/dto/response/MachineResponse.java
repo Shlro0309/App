@@ -15,6 +15,8 @@ public record MachineResponse(
         String resolution,
         BigDecimal hourlyPrice,
         String status,
+        Integer activePlaySessionId,
+        String currentUsername,
         LocalDateTime addedAt
 ) {
 }

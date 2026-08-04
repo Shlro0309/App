@@ -16,6 +16,8 @@ export type Machine = {
   resolution: string | null;
   hourlyPrice: number;
   status: MachineStatus;
+  activePlaySessionId: number | null;
+  currentUsername: string | null;
   addedAt: string;
 };
 

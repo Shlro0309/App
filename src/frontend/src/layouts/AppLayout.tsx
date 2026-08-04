@@ -54,10 +54,10 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-background/80 p-4 backdrop-blur xl:block">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-sky-200/10 bg-[#0b1326]/82 p-4 shadow-2xl shadow-black/35 backdrop-blur-2xl xl:block">
         <div className="flex h-full flex-col">
           <div className="mb-8 flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-md border bg-muted">
+            <div className="grid size-10 place-items-center rounded-md border border-primary/35 bg-primary/10 shadow-[0_0_22px_rgba(78,222,163,0.18)]">
               <ScrollText className="size-5 text-primary" />
             </div>
             <div>
@@ -72,10 +72,10 @@ export function AppLayout() {
                 key={item.label}
                 className={({ isActive }) =>
                   [
-                    "flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition",
+                    "relative flex h-10 w-full items-center gap-3 overflow-hidden rounded-md px-3 text-sm transition",
                     isActive
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      ? "bg-secondary/10 text-foreground shadow-[inset_0_0_0_1px_rgba(123,209,250,0.16)] before:absolute before:left-0 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-r before:bg-secondary"
+                      : "text-muted-foreground hover:bg-secondary/5 hover:text-foreground hover:shadow-[inset_0_0_0_1px_rgba(123,209,250,0.1)]",
                   ].join(" ")
                 }
                 end={item.path === "/"}
@@ -87,7 +87,7 @@ export function AppLayout() {
             ))}
           </nav>
 
-          <div className="mt-auto grid gap-3 rounded-md border bg-background p-3">
+          <div className="glass-panel mt-auto grid gap-3 rounded-md p-3">
             <div className="flex items-center gap-3">
               <UserCircle className="size-8 text-primary" />
               <div className="min-w-0">
@@ -111,10 +111,10 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <header className="sticky top-0 z-10 border-b bg-background/95 px-4 py-3 backdrop-blur xl:hidden">
+      <header className="sticky top-0 z-10 border-b border-sky-200/10 bg-[#0b1326]/92 px-4 py-3 backdrop-blur-2xl xl:hidden">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="grid size-9 place-items-center rounded-md border bg-muted">
+            <div className="grid size-9 place-items-center rounded-md border border-primary/35 bg-primary/10 shadow-[0_0_18px_rgba(78,222,163,0.18)]">
               <ScrollText className="size-4 text-primary" />
             </div>
             <div>
@@ -145,8 +145,8 @@ export function AppLayout() {
                 [
                   "flex h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-sm transition",
                   isActive
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-muted-foreground",
+                    ? "border-secondary/60 bg-secondary/10 text-foreground shadow-[0_0_18px_rgba(123,209,250,0.14)]"
+                    : "border-border text-muted-foreground hover:border-secondary/40 hover:text-foreground",
                 ].join(" ")
               }
               end={item.path === "/"}

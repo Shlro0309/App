@@ -19,6 +19,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,6 +29,7 @@ import {
 } from "recharts";
 import type { ApiError } from "@/types/api";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
+import { CountUpValue } from "@/components/ui/CountUpValue";
 import { getReportOverview } from "./reportApi";
 import type {
   ReportBreakdown,
@@ -49,6 +53,15 @@ const methodLabels: Record<string, string> = {
   ACCOUNT_BALANCE: "Trừ số dư tài khoản",
   UNKNOWN: "Chưa ghi nhận",
 };
+
+const analyticsColors = [
+  "#4edea3",
+  "#7bd1fa",
+  "#9699ff",
+  "#38bdf8",
+  "#f472b6",
+  "#fbbf24",
+];
 
 function defaultFilters(): ReportFilters {
   const today = new Date();
@@ -123,20 +136,49 @@ function MetricCard({
   value,
   detail,
   icon: Icon,
+  formatValue = formatCurrency,
 }: {
   label: string;
-  value: string;
+  value: number;
   detail: string;
   icon: typeof CircleDollarSign;
+  formatValue?: (value: number) => string;
 }) {
   return (
-    <div className="rounded-md border bg-background p-4">
+    <div className="glacier-card rounded-md p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <Icon className="size-5 shrink-0 text-primary" />
+        <span className="label-caps text-muted-foreground">{label}</span>
+        <span className="grid size-9 shrink-0 place-items-center rounded-md border border-primary/30 bg-primary/10 text-primary shadow-[0_0_18px_rgba(78,222,163,0.14)]">
+          <Icon className="size-5" />
+        </span>
       </div>
-      <p className="text-2xl font-semibold leading-tight">{value}</p>
+      <p className="metric-number text-2xl font-semibold leading-tight">
+        <CountUpValue value={value} format={formatValue} />
+      </p>
       <p className="mt-2 text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function ReportSkeleton() {
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div className="glacier-card grid gap-4 rounded-md p-4" key={index}>
+            <div className="flex items-center justify-between">
+              <div className="skeleton-line h-4 w-28" />
+              <div className="skeleton-line size-9" />
+            </div>
+            <div className="skeleton-line h-8 w-36" />
+            <div className="skeleton-line h-3 w-44 max-w-full" />
+          </div>
+        ))}
+      </div>
+      <div className="glass-panel grid min-h-[300px] gap-4 rounded-md p-4">
+        <div className="skeleton-line h-5 w-48" />
+        <div className="skeleton-line h-64" />
+      </div>
     </div>
   );
 }
@@ -155,20 +197,65 @@ function BreakdownList({
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Chưa có dữ liệu.</p>
       ) : null}
-      {items.map((item) => {
+      {items.length > 0 ? (
+        <div className="h-44">
+          <ResponsiveContainer height="100%" width="100%">
+            <PieChart>
+              <Tooltip
+                contentStyle={{
+                  background: "rgba(13, 22, 42, 0.94)",
+                  border: "1px solid rgba(123, 209, 250, 0.35)",
+                  borderRadius: 8,
+                  color: "#dae2fd",
+                }}
+                formatter={(value) => [formatCurrency(Number(value)), "Doanh thu"]}
+              />
+              <Pie
+                cx="50%"
+                cy="50%"
+                data={items}
+                dataKey="revenue"
+                innerRadius={46}
+                isAnimationActive={false}
+                nameKey="label"
+                outerRadius={72}
+                paddingAngle={3}
+                cornerRadius={5}
+                stroke="rgba(6,14,32,0.9)"
+                strokeWidth={2}
+              >
+                {items.map((item, index) => (
+                  <Cell
+                    fill={analyticsColors[index % analyticsColors.length]}
+                    key={item.label}
+                  />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      ) : null}
+      {items.map((item, index) => {
         const percent = total > 0 ? Math.round((item.revenue / total) * 100) : 0;
+        const color = analyticsColors[index % analyticsColors.length];
         return (
           <div key={item.label} className="grid gap-1.5">
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">
-                {displayLabel(item.label, labels)}
+              <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                <span
+                  className="size-2.5 shrink-0 rounded-sm"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="truncate">{displayLabel(item.label, labels)}</span>
               </span>
-              <span className="font-medium">{formatCurrency(item.revenue)}</span>
+              <span className="metric-number font-medium">
+                {formatCurrency(item.revenue)}
+              </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${percent}%` }}
+                className="h-full rounded-full"
+                style={{ backgroundColor: color, width: `${percent}%` }}
               />
             </div>
             <p className="text-xs text-muted-foreground">
@@ -383,7 +470,7 @@ export function ReportPage() {
       </div>
 
       <form
-        className="grid gap-3 rounded-md border bg-background p-4 md:grid-cols-[180px_180px_auto]"
+        className="glass-panel grid gap-3 rounded-md p-4 md:grid-cols-[180px_180px_auto]"
         onSubmit={applyFilters}
       >
         <label className="grid gap-2 text-sm">
@@ -423,12 +510,7 @@ export function ReportPage() {
       ) : null}
 
       {loading && !overview ? (
-        <div className="grid min-h-[36vh] place-items-center rounded-md border bg-background text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <RefreshCw className="size-5 animate-spin" />
-            <span>Đang tải báo cáo</span>
-          </div>
-        </div>
+        <ReportSkeleton />
       ) : null}
 
       {overview ? (
@@ -438,30 +520,30 @@ export function ReportPage() {
               detail={`${overview.paidInvoiceCount} hóa đơn đã thanh toán`}
               icon={CircleDollarSign}
               label="Tổng doanh thu"
-              value={formatCurrency(overview.totalRevenue)}
+              value={overview.totalRevenue}
             />
             <MetricCard
               detail={`${overview.completedPlaySessionCount} phiên hoàn tất`}
               icon={Clock3}
               label="Doanh thu giờ chơi"
-              value={formatCurrency(overview.playSessionRevenue)}
+              value={overview.playSessionRevenue}
             />
             <MetricCard
               detail={`${overview.completedOrderCount} đơn hoàn tất`}
               icon={ShoppingBasket}
               label="Doanh thu dịch vụ"
-              value={formatCurrency(overview.serviceRevenue)}
+              value={overview.serviceRevenue}
             />
             <MetricCard
               detail={formatDuration(overview.totalPlayMinutes)}
               icon={WalletCards}
               label="Trung bình hóa đơn"
-              value={formatCurrency(overview.averageInvoiceAmount)}
+              value={overview.averageInvoiceAmount}
             />
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
-            <div className="rounded-md border bg-background p-4">
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
+            <div className="glass-panel rounded-md p-4">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold">Doanh thu theo ngày</h3>
@@ -480,7 +562,11 @@ export function ReportPage() {
                         <stop offset="95%" stopColor="#22c55e" stopOpacity={0.03} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <CartesianGrid
+                      stroke="rgba(255,255,255,0.05)"
+                      strokeDasharray="3 3"
+                      vertical={false}
+                    />
                     <XAxis dataKey="date" tickLine={false} />
                     <YAxis
                       tickFormatter={(value) =>
@@ -492,6 +578,17 @@ export function ReportPage() {
                       width={56}
                     />
                     <Tooltip
+                      contentStyle={{
+                        background: "rgba(13, 22, 42, 0.94)",
+                        border: "1px solid rgba(123, 209, 250, 0.35)",
+                        borderRadius: 8,
+                        color: "#dae2fd",
+                      }}
+                      cursor={{
+                        stroke: "#7bd1fa",
+                        strokeDasharray: "4 4",
+                        strokeWidth: 1,
+                      }}
                       formatter={(value, name) => [
                         name === "revenue"
                           ? formatCurrency(Number(value))
@@ -512,14 +609,14 @@ export function ReportPage() {
             </div>
 
             <div className="grid gap-5">
-              <div className="rounded-md border bg-background p-4">
+              <div className="glass-panel rounded-md p-4">
                 <h3 className="mb-4 font-semibold">Nguồn giao dịch</h3>
                 <BreakdownList
                   items={overview.revenueByTransactionType}
                   labels={transactionLabels}
                 />
               </div>
-              <div className="rounded-md border bg-background p-4">
+              <div className="glass-panel rounded-md p-4">
                 <h3 className="mb-4 font-semibold">Phương thức thanh toán</h3>
                 <BreakdownList
                   items={overview.revenueByPaymentMethod}
@@ -529,7 +626,7 @@ export function ReportPage() {
             </div>
           </div>
 
-          <div className="rounded-md border bg-background p-4">
+          <div className="glass-panel rounded-md p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold">Dịch vụ bán chạy</h3>
@@ -542,7 +639,11 @@ export function ReportPage() {
             <div className="h-64">
               <ResponsiveContainer height="100%" width="100%">
                 <BarChart data={serviceChartData} margin={{ left: 8, right: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid
+                    stroke="rgba(255,255,255,0.05)"
+                    strokeDasharray="3 3"
+                    vertical={false}
+                  />
                   <XAxis dataKey="name" tickLine={false} />
                   <YAxis
                     tickFormatter={(value) =>
@@ -554,23 +655,36 @@ export function ReportPage() {
                     width={56}
                   />
                   <Tooltip
+                    contentStyle={{
+                      background: "rgba(13, 22, 42, 0.94)",
+                      border: "1px solid rgba(123, 209, 250, 0.35)",
+                      borderRadius: 8,
+                      color: "#dae2fd",
+                    }}
                     formatter={(value) => [formatCurrency(Number(value)), "Doanh thu"]}
                   />
-                  <Bar dataKey="revenue" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
+                    {serviceChartData.map((item, index) => (
+                      <Cell
+                        fill={analyticsColors[index % analyticsColors.length]}
+                        key={item.name}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           <div className="grid gap-5 xl:grid-cols-2">
-            <div className="overflow-hidden rounded-md border bg-background">
+            <div className="glass-panel overflow-hidden rounded-md">
               <div className="flex items-center gap-2 border-b p-4">
                 <Monitor className="size-5 text-primary" />
                 <h3 className="font-semibold">Sử dụng máy</h3>
               </div>
               <MachineUsageTable items={overview.machineUsage} />
             </div>
-            <div className="overflow-hidden rounded-md border bg-background">
+            <div className="glass-panel overflow-hidden rounded-md">
               <div className="flex items-center gap-2 border-b p-4">
                 <ShoppingBasket className="size-5 text-primary" />
                 <h3 className="font-semibold">Dịch vụ bán ra</h3>
@@ -579,7 +693,7 @@ export function ReportPage() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-md border bg-background">
+          <div className="glass-panel overflow-hidden rounded-md">
             <div className="flex items-center gap-2 border-b p-4">
               <Trophy className="size-5 text-primary" />
               <h3 className="font-semibold">Khách hàng nổi bật</h3>

@@ -16,5 +16,7 @@ public interface MachineMapper {
     @Mapping(target = "areaId", source = "area.id")
     @Mapping(target = "areaName", source = "area.name")
     @Mapping(target = "status", expression = "java(machine.getStatus().name())")
+    @Mapping(target = "activePlaySessionId", ignore = true)
+    @Mapping(target = "currentUsername", ignore = true)
     MachineResponse toResponse(Machine machine);
 }

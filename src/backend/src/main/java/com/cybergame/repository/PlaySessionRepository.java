@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Collection;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -35,6 +36,9 @@ public interface PlaySessionRepository extends JpaRepository<PlaySession, Intege
 
     @EntityGraph(attributePaths = {"customer", "customer.user", "machine", "machine.area"})
     List<PlaySession> findByStatus(PlaySessionStatus status);
+
+    @EntityGraph(attributePaths = {"customer", "customer.user", "machine"})
+    List<PlaySession> findByMachineIdInAndStatus(Collection<Integer> machineIds, PlaySessionStatus status);
 
     @EntityGraph(attributePaths = {"machine", "machine.area"})
     @Query("""

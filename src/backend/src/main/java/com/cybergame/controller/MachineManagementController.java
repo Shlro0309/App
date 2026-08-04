@@ -70,7 +70,7 @@ public class MachineManagementController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public MachineResponse updateStatus(
             @PathVariable Integer id,
             @Valid @RequestBody MachineStatusUpdateRequest request

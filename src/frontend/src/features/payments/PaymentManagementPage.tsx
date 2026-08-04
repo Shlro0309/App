@@ -12,8 +12,9 @@ import {
   ShieldAlert,
   WalletCards,
 } from "lucide-react";
-import type { ApiError } from "@/types/api";
+import { CountUpValue } from "@/components/ui/CountUpValue";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
+import type { ApiError } from "@/types/api";
 import {
   cancelPayment,
   getPayments,
@@ -259,7 +260,7 @@ export function PaymentManagementPage() {
         </div>
         <div className="flex gap-2">
           <button
-            className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-sky-200/20 bg-white/[0.03] px-4 text-sm text-muted-foreground transition hover:border-primary/40 hover:bg-primary/10 hover:text-foreground"
             type="button"
             onClick={() => loadPayments(filters)}
           >
@@ -270,36 +271,44 @@ export function PaymentManagementPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-md border bg-background p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tổng hóa đơn</span>
+        <div className="glacier-card rounded-md p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="label-caps">Tổng hóa đơn</span>
             <Receipt className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">{page?.totalElements ?? 0}</p>
+          <CountUpValue
+            className="metric-number text-2xl"
+            value={page?.totalElements ?? 0}
+            format={(value) => String(Math.round(value))}
+          />
         </div>
-        <div className="rounded-md border bg-background p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Đã thu</span>
+        <div className="glacier-card rounded-md p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="label-caps">Đã thu</span>
             <CreditCard className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">
-            {formatCurrency(summary.paidAmount)}
-          </p>
+          <CountUpValue
+            className="metric-number text-2xl"
+            value={summary.paidAmount}
+            format={(value) => formatCurrency(Math.round(value))}
+          />
         </div>
-        <div className="rounded-md border bg-background p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Chờ thu</span>
+        <div className="glacier-card rounded-md p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="label-caps">Chờ thu</span>
             <WalletCards className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">
-            {formatCurrency(summary.pendingAmount)}
-          </p>
+          <CountUpValue
+            className="metric-number text-2xl"
+            value={summary.pendingAmount}
+            format={(value) => formatCurrency(Math.round(value))}
+          />
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-md border bg-background">
+      <div className="glass-panel overflow-hidden rounded-lg">
         <form
-          className="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[1fr_140px_150px_140px_170px_auto]"
+          className="grid gap-3 border-b border-sky-200/10 bg-muted/20 p-4 lg:grid-cols-[1fr_140px_150px_140px_170px_auto]"
           onSubmit={applyFilters}
         >
           <label className="relative">
@@ -377,8 +386,8 @@ export function PaymentManagementPage() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1160px] border-collapse text-sm">
-            <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
+          <table className="w-full min-w-[1040px] border-collapse text-sm">
+            <thead className="bg-white/[0.04] text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Mã</th>
                 <th className="px-4 py-3 font-medium">Khách hàng</th>
@@ -389,7 +398,7 @@ export function PaymentManagementPage() {
                 <th className="px-4 py-3 text-right font-medium">Thao tác</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-white/10">
               {loading && (
                 <tr>
                   <td
@@ -412,7 +421,7 @@ export function PaymentManagementPage() {
               )}
               {!loading &&
                 payments.map((payment) => (
-                  <tr className="border-t" key={payment.id}>
+                  <tr className="transition hover:bg-white/[0.03]" key={payment.id}>
                     <td className="px-4 py-4">
                       <div className="font-medium">#{payment.id}</div>
                       <div className="mt-1 text-xs text-muted-foreground">
@@ -460,7 +469,7 @@ export function PaymentManagementPage() {
                         {payment.status === "PENDING" ? (
                           <>
                             <button
-                              className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                              className="inline-flex size-9 items-center justify-center rounded-md border border-sky-200/20 text-muted-foreground transition hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-200 disabled:opacity-50"
                               disabled={saving}
                               title="Thanh toán"
                               type="button"
@@ -498,13 +507,13 @@ export function PaymentManagementPage() {
           </table>
         </div>
 
-        <div className="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-sky-200/10 px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>
             Trang {(page?.number ?? 0) + 1} / {Math.max(page?.totalPages ?? 1, 1)}
           </span>
           <div className="flex gap-2">
             <button
-              className="inline-flex h-9 items-center gap-2 rounded-md border px-3 transition hover:bg-muted disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-sky-200/10 px-3 transition hover:bg-muted disabled:opacity-50"
               disabled={loading || !page || page.first}
               type="button"
               onClick={() => goToPage(Math.max((page?.number ?? 0) - 1, 0))}
@@ -513,7 +522,7 @@ export function PaymentManagementPage() {
               Trước
             </button>
             <button
-              className="inline-flex h-9 items-center gap-2 rounded-md border px-3 transition hover:bg-muted disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-sky-200/10 px-3 transition hover:bg-muted disabled:opacity-50"
               disabled={loading || !page || page.last}
               type="button"
               onClick={() => goToPage((page?.number ?? 0) + 1)}

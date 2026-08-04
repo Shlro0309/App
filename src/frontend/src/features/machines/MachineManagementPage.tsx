@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Trash2,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import type { ApiError } from "@/types/api";
 import { useRealtimeEvents } from "@/features/realtime/useRealtimeEvents";
@@ -22,6 +23,7 @@ import {
   createMachineArea,
   deleteMachine,
   deleteMachineArea,
+  getMachine,
   getMachineAreas,
   getMachines,
   getMachineStatuses,
@@ -29,7 +31,9 @@ import {
   updateMachineArea,
   updateMachineStatus,
 } from "./machineApi";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormModal } from "@/components/FormModal";
+import { CountUpValue } from "@/components/ui/CountUpValue";
 import type {
   Area,
   AreaFormValues,
@@ -77,6 +81,32 @@ const statusClassNames: Record<MachineStatus, string> = {
   RESERVED: "border-sky-400/35 bg-sky-400/10 text-sky-200",
   PLAYING: "border-primary/35 bg-primary/10 text-primary",
   MAINTENANCE: "border-amber-400/35 bg-amber-400/10 text-amber-200",
+};
+
+const stationVisuals: Record<
+  MachineStatus,
+  { icon: LucideIcon; shell: string; tile: string }
+> = {
+  AVAILABLE: {
+    icon: Monitor,
+    shell: "border-slate-400/35 bg-slate-400/10 text-slate-200",
+    tile: "station-available",
+  },
+  RESERVED: {
+    icon: MapPinned,
+    shell: "border-sky-300/45 bg-sky-300/10 text-sky-100 shadow-[0_0_18px_rgba(123,209,250,0.14)]",
+    tile: "station-reserved",
+  },
+  PLAYING: {
+    icon: Cpu,
+    shell: "border-primary/50 bg-primary/10 text-primary shadow-[0_0_18px_rgba(78,222,163,0.18)]",
+    tile: "station-playing",
+  },
+  MAINTENANCE: {
+    icon: ShieldAlert,
+    shell: "border-amber-300/50 bg-amber-300/10 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.16)]",
+    tile: "station-maintenance",
+  },
 };
 
 function getErrorMessage(error: unknown) {
@@ -387,64 +417,84 @@ function MachineForm({
 }
 
 type MachineCardProps = {
+  canChangeMachineStatus: boolean;
   canManageMachines: boolean;
   machine: Machine;
   saving: boolean;
   onDelete: (machine: Machine) => void;
   onEdit: (machine: Machine) => void;
-  onStatusEdit: (machine: Machine) => void;
+  onSelect: (machine: Machine) => void;
 };
 
 function MachineCard({
+  canChangeMachineStatus,
   canManageMachines,
   machine,
   saving,
   onDelete,
   onEdit,
-  onStatusEdit,
+  onSelect,
 }: MachineCardProps) {
+  const visual = stationVisuals[machine.status];
+  const Icon = visual.icon;
+
   return (
-    <article className="grid min-h-[220px] gap-4 rounded-md border bg-background p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-md bg-muted">
-            <Monitor className="size-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="truncate font-semibold">{machine.name}</h3>
-            <p className="mt-1 text-xs text-muted-foreground">ID #{machine.id}</p>
-          </div>
+    <article
+      className={`station-tile relative grid min-h-[154px] cursor-pointer gap-3 rounded-md p-3 ${visual.tile}`}
+      tabIndex={0}
+      onClick={() => onSelect(machine)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(machine);
+        }
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="label-caps text-muted-foreground">Mã máy #{machine.id}</p>
+          <h3 className="mt-1 truncate font-semibold">{machine.name}</h3>
+        </div>
+        <div className={`grid size-10 shrink-0 place-items-center rounded-md border ${visual.shell}`}>
+          <Icon className="size-5" />
+        </div>
+      </div>
+
+      <div className="grid gap-2 text-xs">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Giá giờ</span>
+          <span className="metric-number whitespace-nowrap font-semibold">
+            {formatCurrency(machine.hourlyPrice)}
+          </span>
         </div>
         <StatusBadge status={machine.status} />
       </div>
 
-      <div className="grid gap-2 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Giá giờ</span>
-          <span className="font-medium">{formatCurrency(machine.hourlyPrice)}</span>
-        </div>
-        <div className="rounded-md border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
-          {formatConfig(machine)}
-        </div>
-      </div>
-
-      {canManageMachines ? (
+      {canChangeMachineStatus || canManageMachines ? (
         <div className="mt-auto flex items-center justify-between gap-2">
           <button
             className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-60"
             disabled={saving}
             type="button"
-            onClick={() => onStatusEdit(machine)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(machine);
+            }}
           >
             <RefreshCw className="size-4" />
             Trạng thái
           </button>
           <div className="flex gap-2">
+            {canManageMachines ? (
+              <>
             <button
               className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
               title="Sửa máy"
               type="button"
-              onClick={() => onEdit(machine)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit(machine);
+              }}
             >
               <Edit3 className="size-4" />
             </button>
@@ -453,10 +503,15 @@ function MachineCard({
               disabled={saving}
               title="Xóa máy"
               type="button"
-              onClick={() => onDelete(machine)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(machine);
+              }}
             >
               <Trash2 className="size-4" />
             </button>
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -464,9 +519,204 @@ function MachineCard({
   );
 }
 
+type MachineDetailModalProps = {
+  canChangeMachineStatus: boolean;
+  canManageMachines: boolean;
+  machine: Machine;
+  saving: boolean;
+  statusDraft: MachineStatus;
+  statuses: MachineStatus[];
+  onClose: () => void;
+  onDelete: (machine: Machine) => void;
+  onEdit: (machine: Machine) => void;
+  onStatusDraftChange: (status: MachineStatus) => void;
+  onStatusSave: (machine: Machine, status: MachineStatus) => void;
+};
+
+const statusDotClassNames: Record<MachineStatus, string> = {
+  AVAILABLE: "bg-emerald-500",
+  RESERVED: "bg-sky-500",
+  PLAYING: "bg-red-500",
+  MAINTENANCE: "bg-amber-500",
+};
+
+function MachineDetailModal({
+  canChangeMachineStatus,
+  canManageMachines,
+  machine,
+  saving,
+  statusDraft,
+  statuses,
+  onClose,
+  onDelete,
+  onEdit,
+  onStatusDraftChange,
+  onStatusSave,
+}: MachineDetailModalProps) {
+  const isBlockedPlayingTransition =
+    machine.status === "PLAYING" &&
+    (statusDraft === "RESERVED" || statusDraft === "MAINTENANCE");
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-md">
+      <form
+        className="glass-panel grid max-h-[92vh] w-full max-w-[680px] gap-5 overflow-y-auto rounded-lg p-7 text-foreground shadow-2xl shadow-black/45"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onStatusSave(machine, statusDraft);
+        }}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-2xl font-semibold tracking-normal">Chi tiết máy {machine.name}</h3>
+            <p className="mt-2 text-base text-muted-foreground">Cập nhật trạng thái máy tính</p>
+          </div>
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+            title="Đóng"
+            type="button"
+            onClick={onClose}
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-5">
+            <div className="grid size-20 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary shadow-[0_0_24px_rgba(78,222,163,0.16)]">
+              <Monitor className="size-10" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="truncate text-2xl font-semibold">{machine.name}</h4>
+              <p className="mt-2 text-base text-muted-foreground">{machine.areaName}</p>
+            </div>
+          </div>
+
+          {canManageMachines ? (
+            <div className="flex shrink-0 gap-3">
+              <button
+                className="inline-flex size-11 items-center justify-center rounded-md border border-sky-200/20 bg-white/[0.03] text-foreground shadow-sm transition hover:border-primary/40 hover:bg-primary/10"
+                title="Sửa máy"
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(machine);
+                }}
+              >
+                <Edit3 className="size-5" />
+              </button>
+              <button
+                className="inline-flex size-11 items-center justify-center rounded-md border border-red-400/35 bg-white/[0.03] text-red-200 shadow-sm transition hover:bg-red-400/10"
+                disabled={saving}
+                title="Xóa máy"
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete(machine);
+                }}
+              >
+                <Trash2 className="size-5" />
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="grid gap-3 rounded-lg border border-primary/20 bg-primary/10 p-4 text-sm text-foreground">
+          <div className="flex items-start gap-3">
+            <Cpu className="mt-0.5 size-5 shrink-0 text-primary" />
+            <div className="grid gap-1">
+              <p className="font-semibold text-foreground">Thông tin máy</p>
+              <p className="text-muted-foreground">Khu vực: {machine.areaName}</p>
+              <p className="text-muted-foreground">Giá giờ: {formatCurrency(machine.hourlyPrice)}</p>
+              {machine.currentUsername ? (
+                <p className="text-muted-foreground">
+                  Đang sử dụng bởi:{" "}
+                  <span className="font-semibold text-primary">
+                    {machine.currentUsername}
+                  </span>
+                </p>
+              ) : null}
+              <p>{formatConfig(machine)}</p>
+            </div>
+          </div>
+        </div>
+
+        <label className="grid gap-2">
+          <span className="text-base font-semibold">Trạng thái</span>
+          <div className="relative w-fit">
+            <span
+              className={`pointer-events-none absolute left-4 top-1/2 size-3 -translate-y-1/2 rounded-full ${statusDotClassNames[statusDraft]}`}
+            />
+            <select
+              className="h-11 rounded-md border border-sky-200/20 bg-background pl-10 pr-9 text-base text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+              disabled={!canChangeMachineStatus || saving}
+              value={statusDraft}
+              onChange={(event) =>
+                onStatusDraftChange(event.target.value as MachineStatus)
+              }
+            >
+              {statuses.map((status) => (
+                <option
+                  disabled={
+                    machine.status === "PLAYING" &&
+                    (status === "RESERVED" || status === "MAINTENANCE")
+                  }
+                  key={status}
+                  value={status}
+                >
+                  {statusLabels[status] ?? status}
+                </option>
+              ))}
+            </select>
+          </div>
+        </label>
+
+        {machine.status === "PLAYING" ? (
+          <div className="flex gap-3 rounded-lg border border-amber-400/25 bg-amber-400/10 p-4 text-amber-200">
+            <ShieldAlert className="mt-0.5 size-5 shrink-0" />
+            <p>Máy đang có người sử dụng, không thể chuyển sang bảo trì hoặc đặt trước.</p>
+          </div>
+        ) : null}
+
+        {isBlockedPlayingTransition ? (
+          <div className="flex gap-3 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-red-200">
+            <ShieldAlert className="mt-0.5 size-5 shrink-0" />
+            <p>Trạng thái này không hợp lệ khi máy đang có phiên chơi.</p>
+          </div>
+        ) : null}
+
+        <div className="flex justify-end gap-3 pt-4">
+          <button
+            className="inline-flex h-11 items-center justify-center rounded-md border border-sky-200/20 bg-white/[0.03] px-6 text-base font-medium text-foreground shadow-sm transition hover:bg-white/10"
+            type="button"
+            onClick={onClose}
+          >
+            Hủy
+          </button>
+          {canChangeMachineStatus ? (
+            <button
+              className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-6 text-base font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={
+                saving ||
+                statusDraft === machine.status ||
+                isBlockedPlayingTransition
+              }
+              type="submit"
+            >
+              Cập nhật
+            </button>
+          ) : null}
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function MachineManagementPage() {
   const currentUser = useAuthStore((state) => state.user);
   const canManageMachines = currentUser?.role === "ADMIN";
+  const canChangeMachineStatus =
+    currentUser?.role === "ADMIN" || currentUser?.role === "EMPLOYEE";
   const [areas, setAreas] = useState<Area[]>([]);
   const [statuses, setStatuses] = useState<MachineStatus[]>([
     "AVAILABLE",
@@ -488,6 +738,7 @@ export function MachineManagementPage() {
   const [areaFormValues, setAreaFormValues] = useState<AreaFormValues>(emptyAreaForm);
   const [statusEditingMachine, setStatusEditingMachine] = useState<Machine | null>(null);
   const [statusDraft, setStatusDraft] = useState<MachineStatus>("AVAILABLE");
+  const [pendingDeleteMachine, setPendingDeleteMachine] = useState<Machine | null>(null);
 
   const machines = useMemo(() => page?.content ?? [], [page]);
   const selectedArea = useMemo(
@@ -649,11 +900,18 @@ export function MachineManagementPage() {
     setAreaFormMode("hidden");
   }
 
-  function openStatusForm(machine: Machine) {
+  async function openStatusForm(machine: Machine) {
     setStatusEditingMachine(machine);
     setStatusDraft(machine.status);
     setError(null);
     setSuccess(null);
+    try {
+      const latestMachine = await getMachine(machine.id);
+      setStatusEditingMachine(latestMachine);
+      setStatusDraft(latestMachine.status);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    }
   }
 
   function closeStatusForm() {
@@ -743,11 +1001,14 @@ export function MachineManagementPage() {
     }
   }
 
-  async function removeMachine(machine: Machine) {
-    const confirmed = window.confirm(
-      `Xóa vĩnh viễn máy ${machine.name}? Dữ liệu liên quan sẽ bị xóa khỏi database.`
-    );
-    if (!confirmed) {
+  function requestRemoveMachine(machine: Machine) {
+    setPendingDeleteMachine(machine);
+    setError(null);
+    setSuccess(null);
+  }
+
+  async function confirmRemoveMachine() {
+    if (!pendingDeleteMachine) {
       return;
     }
 
@@ -755,8 +1016,9 @@ export function MachineManagementPage() {
     setError(null);
     setSuccess(null);
     try {
-      await deleteMachine(machine.id);
-      setSuccess(`Đã xóa máy ${machine.name}.`);
+      await deleteMachine(pendingDeleteMachine.id);
+      setSuccess(`Đã xóa máy ${pendingDeleteMachine.name}.`);
+      setPendingDeleteMachine(null);
       await reloadWorkspace(filters);
     } catch (deleteError) {
       setError(getErrorMessage(deleteError));
@@ -805,27 +1067,34 @@ export function MachineManagementPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">
-        <div className="rounded-md border bg-background p-4">
+        <div className="glacier-card rounded-md p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Máy đang hiển thị</span>
+            <span className="label-caps text-muted-foreground">Máy đang hiển thị</span>
             <Monitor className="size-4 text-primary" />
           </div>
-          <p className="text-2xl font-semibold">{machines.length}</p>
+          <p className="metric-number text-2xl font-semibold">
+            <CountUpValue value={machines.length} format={(value) => String(Math.round(value))} />
+          </p>
         </div>
         {statusSummary.map((item) => (
-          <div className="rounded-md border bg-background p-4" key={item.status}>
+          <div className="glacier-card rounded-md p-4" key={item.status}>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
+              <span className="label-caps text-muted-foreground">
                 {statusLabels[item.status]}
               </span>
-              <Cpu className="size-4 text-primary" />
+              {(() => {
+                const Icon = stationVisuals[item.status].icon;
+                return <Icon className="size-4 text-primary" />;
+              })()}
             </div>
-            <p className="text-2xl font-semibold">{item.count}</p>
+            <p className="metric-number text-2xl font-semibold">
+              <CountUpValue value={item.count} format={(value) => String(Math.round(value))} />
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-md border bg-background">
+      <div className="glass-panel overflow-hidden rounded-md">
         <form
           className="grid gap-3 border-b bg-muted/20 p-4 lg:grid-cols-[minmax(0,1fr)_180px_auto]"
           onSubmit={applyFilters}
@@ -897,57 +1166,32 @@ export function MachineManagementPage() {
         ) : null}
 
         {statusEditingMachine ? (
-          <FormModal title="Cập nhật trạng thái máy" onClose={closeStatusForm}>
-            <form
-              className="grid gap-4 bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void changeStatus(statusEditingMachine, statusDraft);
-              }}
-            >
-              <label className="grid gap-2 text-sm">
-                <span className="text-muted-foreground">Trạng thái mới</span>
-                <select
-                  className="h-10 rounded-md border bg-background px-3 outline-none transition focus:border-primary"
-                  value={statusDraft}
-                  onChange={(event) =>
-                    setStatusDraft(event.target.value as MachineStatus)
-                  }
-                >
-                  {statuses.map((status) => (
-                    <option
-                      disabled={
-                        statusEditingMachine.status === "PLAYING" &&
-                        (status === "RESERVED" || status === "MAINTENANCE")
-                      }
-                      key={status}
-                      value={status}
-                    >
-                      {statusLabels[status] ?? status}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex items-end gap-2">
-                <button
-                  className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
-                  disabled={saving}
-                  type="submit"
-                >
-                  <CheckCircle2 className="size-4" />
-                  Lưu
-                </button>
-                <button
-                  className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  type="button"
-                  onClick={closeStatusForm}
-                >
-                  <X className="size-4" />
-                  Hủy
-                </button>
-              </div>
-            </form>
-          </FormModal>
+          <MachineDetailModal
+            canChangeMachineStatus={canChangeMachineStatus}
+            canManageMachines={canManageMachines}
+            machine={statusEditingMachine}
+            saving={saving}
+            statusDraft={statusDraft}
+            statuses={statuses}
+            onClose={closeStatusForm}
+            onDelete={requestRemoveMachine}
+            onEdit={openEditMachineForm}
+            onStatusDraftChange={setStatusDraft}
+            onStatusSave={(nextMachine, nextStatus) =>
+              void changeStatus(nextMachine, nextStatus)
+            }
+          />
+        ) : null}
+
+        {pendingDeleteMachine ? (
+          <ConfirmDialog
+            confirmLabel="Xóa máy"
+            description={`Máy ${pendingDeleteMachine.name} sẽ bị xóa vĩnh viễn khỏi database cùng dữ liệu liên quan. Thao tác này không thể hoàn tác.`}
+            loading={saving}
+            title="Xác nhận xóa máy trạm"
+            onCancel={() => setPendingDeleteMachine(null)}
+            onConfirm={() => void confirmRemoveMachine()}
+          />
         ) : null}
 
         {error ? (
@@ -965,7 +1209,7 @@ export function MachineManagementPage() {
         ) : null}
 
         <div className="grid gap-0 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="border-b bg-muted/10 p-4 lg:border-b-0 lg:border-r">
+          <aside className="border-b border-sky-200/10 bg-muted/10 p-4 lg:border-b-0 lg:border-r lg:border-sky-200/10">
             <div className="mb-3 flex items-center gap-2">
               <Layers3 className="size-4 text-primary" />
               <h3 className="font-semibold">Khu vực</h3>
@@ -986,7 +1230,7 @@ export function MachineManagementPage() {
               </button>
 
               {areas.map((area) => (
-                <div className="grid gap-2 rounded-md border bg-background p-2" key={area.id}>
+                <div className="glacier-card grid gap-2 rounded-md p-2" key={area.id}>
                   <button
                     className={[
                       "flex items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-sm transition hover:bg-muted",
@@ -1029,13 +1273,35 @@ export function MachineManagementPage() {
             </div>
           </aside>
 
-          <div className="min-h-[520px] p-4">
+          <div className="floor-map min-h-[520px] p-4">
             {loading ? (
-              <div className="grid min-h-[360px] place-items-center text-muted-foreground">
-                <div className="grid justify-items-center gap-3">
-                  <RefreshCw className="size-6 animate-spin" />
-                  <span>Đang tải sơ đồ máy</span>
-                </div>
+              <div className="grid gap-4">
+                {Array.from({ length: 2 }).map((_, groupIndex) => (
+                  <section className="grid gap-3" key={groupIndex}>
+                    <div className="flex items-center justify-between border-b border-sky-200/10 pb-2">
+                      <div className="grid gap-2">
+                        <div className="skeleton-line h-5 w-32" />
+                        <div className="skeleton-line h-4 w-44" />
+                      </div>
+                      <div className="skeleton-line h-8 w-28" />
+                    </div>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3 rounded-lg border border-sky-200/10 bg-[#060e20]/45 p-3">
+                      {Array.from({ length: 8 }).map((__, index) => (
+                        <div className="station-tile grid min-h-[154px] gap-3 rounded-md p-3" key={index}>
+                          <div className="flex items-start justify-between">
+                            <div className="grid gap-2">
+                              <div className="skeleton-line h-3 w-12" />
+                              <div className="skeleton-line h-5 w-20" />
+                            </div>
+                            <div className="skeleton-line size-10" />
+                          </div>
+                          <div className="skeleton-line h-4 w-full" />
+                          <div className="skeleton-line h-8 w-full" />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
               </div>
             ) : null}
 
@@ -1060,16 +1326,17 @@ export function MachineManagementPage() {
                         {selectedArea.description ?? "Chưa có mô tả"}
                       </span>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3 rounded-lg border border-sky-200/10 bg-[#060e20]/45 p-3">
                       {machines.map((machine) => (
                         <MachineCard
+                          canChangeMachineStatus={canChangeMachineStatus}
                           canManageMachines={canManageMachines}
                           key={machine.id}
                           machine={machine}
                           saving={saving}
-                          onDelete={removeMachine}
+                          onDelete={requestRemoveMachine}
                           onEdit={openEditMachineForm}
-                          onStatusEdit={openStatusForm}
+                          onSelect={openStatusForm}
                         />
                       ))}
                     </div>
@@ -1088,16 +1355,17 @@ export function MachineManagementPage() {
                           {group.area.description ?? "Chưa có mô tả"}
                         </span>
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3 rounded-lg border border-sky-200/10 bg-[#060e20]/45 p-3">
                         {group.machines.map((machine) => (
                           <MachineCard
+                            canChangeMachineStatus={canChangeMachineStatus}
                             canManageMachines={canManageMachines}
                             key={machine.id}
                             machine={machine}
                             saving={saving}
-                            onDelete={removeMachine}
+                            onDelete={requestRemoveMachine}
                             onEdit={openEditMachineForm}
-                            onStatusEdit={openStatusForm}
+                            onSelect={openStatusForm}
                           />
                         ))}
                       </div>

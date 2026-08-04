@@ -30,6 +30,7 @@ src/frontend/.vite/
 src/frontend/.eslintcache
 src/frontend/playwright-report/
 src/frontend/test-results/
+src/frontend/tests/
 tests/artifacts/
 
 # Portable local tools
