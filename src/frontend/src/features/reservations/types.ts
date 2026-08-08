@@ -5,13 +5,27 @@ export type ReservationStatus =
   | "EXPIRED"
   | "COMPLETED";
 
+export type ReservationMachineStatus =
+  | "AVAILABLE"
+  | "RESERVED"
+  | "PLAYING"
+  | "MAINTENANCE";
+
 export type ReservationMachine = {
   id: number;
   name: string;
   areaId: number;
   areaName: string;
+  cpu: string | null;
+  gpu: string | null;
+  ram: number | null;
+  fps: number | null;
+  resolution: string | null;
   hourlyPrice: number;
-  status: string;
+  status: ReservationMachineStatus;
+  activePlaySessionId: number | null;
+  currentUsername: string | null;
+  addedAt: string;
 };
 
 export type Reservation = {
@@ -35,6 +49,13 @@ export type StationReservation = {
   machineName: string;
   expiresAt: string;
   status: ReservationStatus;
+};
+
+export type StationMachine = {
+  id: number;
+  name: string;
+  areaName: string;
+  status: ReservationMachineStatus;
 };
 
 export type ReservationFilters = {

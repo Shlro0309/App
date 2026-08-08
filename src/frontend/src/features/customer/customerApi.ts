@@ -8,6 +8,7 @@ import {
   cancelReservation,
   createReservation,
   getAvailableReservationMachines,
+  getReservationMachines,
   getReservations,
 } from "@/features/reservations/reservationApi";
 import type {
@@ -76,6 +77,17 @@ export async function getCustomerAvailableMachines(keyword = "") {
     areaId: "",
     page: 0,
     size: 24,
+  });
+
+  return page.content;
+}
+
+export async function getCustomerReservationMachines(keyword = "") {
+  const page = await getReservationMachines({
+    keyword,
+    areaId: "",
+    page: 0,
+    size: 1000,
   });
 
   return page.content;

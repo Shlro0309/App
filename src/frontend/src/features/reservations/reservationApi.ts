@@ -7,6 +7,7 @@ import type {
   ReservationFormValues,
   ReservationMachine,
   ReservationStatus,
+  StationMachine,
   StationReservation,
 } from "./types";
 
@@ -68,9 +69,37 @@ export async function getAvailableReservationMachines(
   return response.data;
 }
 
+export async function getReservationMachines(filters: AvailableMachineFilters) {
+  const response = await httpClient.get<PageResponse<ReservationMachine>>(
+    "/reservations/reservation-machines",
+    {
+      params: {
+        keyword: filters.keyword || undefined,
+        areaId: filters.areaId || undefined,
+        page: filters.page,
+        size: filters.size,
+        sort: "id,asc",
+      },
+    }
+  );
+
+  return response.data;
+}
+
 export async function getStationActiveReservation(machineId: number) {
   const response = await httpClient.get<StationReservation | null>(
     "/reservations/station-active",
+    {
+      params: { machineId },
+    }
+  );
+
+  return response.data;
+}
+
+export async function getStationMachine(machineId: number) {
+  const response = await httpClient.get<StationMachine>(
+    "/reservations/station-machine",
     {
       params: { machineId },
     }

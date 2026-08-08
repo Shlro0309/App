@@ -5,6 +5,7 @@ import com.cybergame.dto.request.ReservationStatusUpdateRequest;
 import com.cybergame.dto.response.MachineResponse;
 import com.cybergame.dto.response.MessageResponse;
 import com.cybergame.dto.response.ReservationResponse;
+import com.cybergame.dto.response.StationMachineResponse;
 import com.cybergame.dto.response.StationReservationResponse;
 import com.cybergame.entity.Customer;
 import com.cybergame.entity.Machine;
@@ -190,6 +191,17 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<MachineResponse> getReservationMachines(String keyword, Integer areaId, Pageable pageable) {
+        Specification<Machine> specification = Specification
+                .where(MachineSpecifications.hasKeyword(keyword))
+                .and(MachineSpecifications.hasArea(areaId));
+
+        return machineRepository.findAll(specification, pageable)
+                .map(machineMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<MachineResponse> getAvailableMachines(String keyword, Integer areaId, Pageable pageable) {
         Specification<Machine> specification = Specification
                 .where(MachineSpecifications.hasKeyword(keyword))
@@ -198,6 +210,20 @@ public class ReservationServiceImpl implements ReservationService {
 
         return machineRepository.findAll(specification, pageable)
                 .map(machineMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StationMachineResponse getStationMachine(Integer machineId) {
+        Machine machine = machineRepository.findById(machineId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy máy trạm"));
+
+        return new StationMachineResponse(
+                machine.getId(),
+                machine.getName(),
+                machine.getArea().getName(),
+                machine.getStatus().name()
+        );
     }
 
     @Override

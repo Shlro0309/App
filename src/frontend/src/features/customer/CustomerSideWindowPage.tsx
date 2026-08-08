@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import bookingGamingBackground from "@/assets/booking-gaming-bg.png";
 import type { ApiError } from "@/types/api";
 import { changePassword } from "@/features/auth/authApi";
 import { createFoodOrder } from "@/features/food-service/foodServiceApi";
@@ -1025,9 +1026,12 @@ export function CustomerSideWindowPage() {
 
   if (collapsed) {
     return (
-      <main className="grid min-h-screen place-items-start bg-background p-4">
+      <main
+        className="booking-shell grid min-h-screen place-items-start bg-cover bg-center p-4"
+        style={{ backgroundImage: `url(${bookingGamingBackground})` }}
+      >
         <button
-          className="inline-flex size-12 items-center justify-center rounded-full border bg-muted text-muted-foreground transition hover:text-foreground"
+          className="inline-flex size-12 items-center justify-center rounded-full border border-primary/35 bg-[#050b19]/85 text-primary shadow-[0_0_24px_rgba(78,222,163,0.18)] transition hover:bg-primary/10 hover:text-slate-50"
           title="Mở bảng khách hàng"
           type="button"
           onClick={() => setCollapsed(false)}
@@ -1043,10 +1047,13 @@ export function CustomerSideWindowPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <section className="relative min-h-screen w-full max-w-[402px] border-r bg-[#111827] px-5 py-4 shadow-2xl">
+    <main
+      className="booking-shell min-h-screen bg-cover bg-center text-foreground"
+      style={{ backgroundImage: `url(${bookingGamingBackground})` }}
+    >
+      <section className="glass-panel relative min-h-screen w-full max-w-[402px] border-r border-primary/20 bg-[#050b19]/88 px-5 py-4 shadow-2xl shadow-black/50 backdrop-blur-xl">
         <button
-          className="absolute left-5 top-4 inline-flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:text-foreground"
+          className="absolute left-5 top-4 inline-flex size-11 items-center justify-center rounded-full border border-primary/25 bg-white/[0.04] text-cyan-100 transition hover:bg-primary/10 hover:text-primary"
           title="Ẩn bảng khách hàng"
           type="button"
           onClick={() => setCollapsed(true)}
@@ -1055,13 +1062,13 @@ export function CustomerSideWindowPage() {
         </button>
 
         <div className="grid justify-items-center gap-3 pt-6">
-          <div className="relative grid size-20 place-items-center rounded-full border bg-muted/30">
+          <div className="relative grid size-20 place-items-center rounded-full border border-primary/35 bg-primary/10 shadow-[0_0_28px_rgba(78,222,163,0.16)]">
             <UserIcon />
-            <span className="absolute bottom-1 right-1 size-5 rounded-full border-4 border-[#111827] bg-emerald-500" />
+            <span className="absolute bottom-1 right-1 size-5 rounded-full border-4 border-[#050b19] bg-emerald-500" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-semibold">{user?.username}</h1>
-            <div className="mt-2 inline-flex items-center gap-2 rounded-full border bg-muted/40 px-4 py-1 text-sm">
+            <h1 className="text-xl font-bold text-slate-50">{user?.username}</h1>
+            <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-sky-200/15 bg-white/[0.05] px-4 py-1 text-sm font-semibold text-slate-100">
               <Monitor className="size-4 text-primary" />
               {activeSession?.machineName ?? "Chưa vào máy"}
             </div>
@@ -1069,32 +1076,32 @@ export function CustomerSideWindowPage() {
         </div>
 
         <div className="mt-7 grid gap-5">
-          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-5">
+          <div className="rounded-lg border border-emerald-400/45 bg-emerald-400/10 p-5 shadow-[0_0_22px_rgba(52,211,153,0.1)]">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase">
               <WalletCards className="size-5 text-emerald-400" />
               Số dư hiện tại
             </div>
-            <p className="text-3xl font-bold text-emerald-400">
+            <p className="metric-number text-3xl font-bold text-emerald-300">
               {formatCurrency(visibleBalance)}
             </p>
           </div>
 
-          <div className="rounded-lg border border-purple-400/40 bg-purple-500/15 p-5">
+          <div className="rounded-lg border border-fuchsia-300/40 bg-fuchsia-500/15 p-5 shadow-[0_0_22px_rgba(217,70,239,0.1)]">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase">
-              <Clock3 className="size-5 text-purple-300" />
+              <Clock3 className="size-5 text-fuchsia-200" />
               Thời gian còn lại
             </div>
-            <p className="font-mono text-3xl font-bold text-purple-200">
+            <p className="metric-number text-3xl font-bold text-fuchsia-100">
               {formatClock(remaining)}
             </p>
           </div>
 
-          <div className="rounded-lg border bg-muted/20 p-5">
+          <div className="rounded-lg border border-sky-200/15 bg-white/[0.04] p-5">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase">
-              <Clock3 className="size-5 text-emerald-300" />
+              <Clock3 className="size-5 text-cyan-100" />
               Thời gian đã dùng
             </div>
-            <p className="font-mono text-3xl font-bold text-emerald-200">
+            <p className="metric-number text-3xl font-bold text-cyan-100">
               {formatClock(elapsed)}
             </p>
           </div>
@@ -1106,11 +1113,11 @@ export function CustomerSideWindowPage() {
           </div>
         ) : null}
 
-        <div className="mt-5 border-t pt-3">
-          <div className="mb-2 grid grid-cols-2 rounded-md bg-background/50 p-1">
+        <div className="mt-5 border-t border-sky-200/10 pt-3">
+          <div className="mb-2 grid grid-cols-2 rounded-md bg-[#020713]/60 p-1">
             <button
               className={`inline-flex h-9 items-center justify-center gap-2 rounded-md text-sm font-medium transition ${
-                tab === "orders" ? "bg-muted text-foreground" : "text-muted-foreground"
+                tab === "orders" ? "bg-primary/15 text-primary" : "text-slate-300"
               }`}
               type="button"
               onClick={() => setTab("orders")}
@@ -1120,7 +1127,7 @@ export function CustomerSideWindowPage() {
             </button>
             <button
               className={`inline-flex h-9 items-center justify-center gap-2 rounded-md text-sm font-medium transition ${
-                tab === "history" ? "bg-muted text-foreground" : "text-muted-foreground"
+                tab === "history" ? "bg-primary/15 text-primary" : "text-slate-300"
               }`}
               type="button"
               onClick={() => setTab("history")}
@@ -1130,7 +1137,7 @@ export function CustomerSideWindowPage() {
             </button>
           </div>
           {loading ? (
-            <div className="grid min-h-28 place-items-center rounded-md border bg-muted/20 text-sm text-muted-foreground">
+            <div className="grid min-h-28 place-items-center rounded-md border border-sky-200/15 bg-white/[0.04] text-sm text-slate-300">
               <RefreshCw className="mb-2 size-5 animate-spin" />
               Đang tải
             </div>
@@ -1143,7 +1150,7 @@ export function CustomerSideWindowPage() {
 
         <div className="mt-7 grid grid-cols-2 gap-4">
           <button
-            className="inline-flex h-20 flex-col items-center justify-center gap-2 rounded-lg border border-orange-500/40 bg-orange-500/10 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/15"
+            className="inline-flex h-20 flex-col items-center justify-center gap-2 rounded-lg border border-orange-400/40 bg-orange-500/10 text-sm font-bold text-orange-200 transition hover:bg-orange-500/15"
             type="button"
             onClick={() => setServiceVisible(true)}
           >
@@ -1151,7 +1158,7 @@ export function CustomerSideWindowPage() {
             Dịch vụ
           </button>
           <button
-            className="inline-flex h-20 flex-col items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-20 flex-col items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/10 text-sm font-bold text-emerald-200 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
             title="Gửi yêu cầu nạp tiền"
             type="button"
             onClick={() => setTopUpVisible(true)}
@@ -1160,7 +1167,7 @@ export function CustomerSideWindowPage() {
             Nạp tiền
           </button>
           <button
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-lg border bg-muted/30 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-lg border border-sky-200/15 bg-white/[0.04] text-sm font-bold text-slate-200 transition hover:bg-muted hover:text-slate-50"
             type="button"
             onClick={() => setPasswordVisible((value) => !value)}
           >
@@ -1168,7 +1175,7 @@ export function CustomerSideWindowPage() {
             Đổi MK
           </button>
           <button
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 text-sm font-semibold text-red-300 transition hover:bg-red-500/15"
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-lg border border-red-400/40 bg-red-500/10 text-sm font-bold text-red-200 transition hover:bg-red-500/15"
             type="button"
             onClick={() => void handleLogout()}
           >

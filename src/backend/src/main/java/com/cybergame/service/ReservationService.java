@@ -5,6 +5,7 @@ import com.cybergame.dto.request.ReservationStatusUpdateRequest;
 import com.cybergame.dto.response.MachineResponse;
 import com.cybergame.dto.response.MessageResponse;
 import com.cybergame.dto.response.ReservationResponse;
+import com.cybergame.dto.response.StationMachineResponse;
 import com.cybergame.dto.response.StationReservationResponse;
 import com.cybergame.entity.enums.ReservationStatus;
 import com.cybergame.security.CurrentUser;
@@ -31,7 +32,11 @@ public interface ReservationService {
 
     MessageResponse cancelReservation(CurrentUser currentUser, Integer id);
 
+    Page<MachineResponse> getReservationMachines(String keyword, Integer areaId, Pageable pageable);
+
     Page<MachineResponse> getAvailableMachines(String keyword, Integer areaId, Pageable pageable);
+
+    StationMachineResponse getStationMachine(Integer machineId);
 
     StationReservationResponse getStationReservation(Integer machineId);
 
