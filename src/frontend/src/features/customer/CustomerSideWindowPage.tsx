@@ -208,17 +208,17 @@ function paymentStatusLabel(value: string) {
 function OrderList({ orders }: { orders: FoodOrder[] }) {
   if (orders.length === 0) {
     return (
-      <div className="grid min-h-28 place-items-center rounded-md border border-dashed bg-muted/20 p-4 text-center">
-        <PackageOpen className="mb-2 size-9 text-muted-foreground" />
+      <div className="grid min-h-24 place-items-center rounded-md border border-dashed bg-muted/20 p-3 text-center">
+        <PackageOpen className="mb-2 size-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Chưa gọi món nào</p>
       </div>
     );
   }
 
   return (
-    <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+    <div className="max-h-32 space-y-2 overflow-y-auto pr-1">
       {orders.map((order) => (
-        <div className="rounded-md border bg-background p-3" key={order.id}>
+        <div className="rounded-md border bg-background/80 p-2.5" key={order.id}>
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="font-medium">Đơn #{order.id}</span>
             <span>{formatCurrency(order.totalAmount)}</span>
@@ -235,17 +235,17 @@ function OrderList({ orders }: { orders: FoodOrder[] }) {
 function HistoryList({ payments }: { payments: Payment[] }) {
   if (payments.length === 0) {
     return (
-      <div className="grid min-h-28 place-items-center rounded-md border border-dashed bg-muted/20 p-4 text-center">
-        <History className="mb-2 size-9 text-muted-foreground" />
+      <div className="grid min-h-24 place-items-center rounded-md border border-dashed bg-muted/20 p-3 text-center">
+        <History className="mb-2 size-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Chưa có lịch sử thanh toán</p>
       </div>
     );
   }
 
   return (
-    <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+    <div className="max-h-32 space-y-2 overflow-y-auto pr-1">
       {payments.map((payment) => (
-        <div className="rounded-md border bg-background p-3" key={payment.id}>
+        <div className="rounded-md border bg-background/80 p-2.5" key={payment.id}>
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="font-medium">{transactionLabel(payment.transactionType)}</span>
             <span>{formatCurrency(payment.amount)}</span>
@@ -422,12 +422,12 @@ function ServiceOrderModal({
   }
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-end bg-black/60 p-4 backdrop-blur-sm sm:place-items-center">
+    <div className="pointer-events-none fixed inset-y-4 left-4 right-[376px] z-40 grid items-center justify-items-end max-lg:right-4">
       <form
-        className="grid h-[86vh] max-h-[86vh] w-full max-w-4xl grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden rounded-md border bg-background shadow-2xl"
+        className="pointer-events-auto grid h-[86vh] max-h-[86vh] w-full max-w-4xl grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden rounded-md border border-primary/25 bg-[#050b19]/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
         onSubmit={submitOrder}
       >
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border-b border-sky-200/10 px-4 py-3">
           <div className="flex items-center gap-2">
             <Utensils className="size-5 text-primary" />
             <div>
@@ -440,7 +440,7 @@ function ServiceOrderModal({
             </div>
           </div>
           <button
-            className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="inline-flex size-9 items-center justify-center rounded-md border border-sky-200/15 text-muted-foreground transition hover:bg-white/[0.06] hover:text-foreground"
             title="Đóng"
             type="button"
             onClick={onClose}
@@ -663,12 +663,12 @@ function TopUpModal({
   }
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-end bg-black/60 p-4 backdrop-blur-sm sm:place-items-center">
+    <div className="pointer-events-none fixed right-[376px] top-4 z-50 w-[min(460px,calc(100vw-392px))] max-lg:right-4 max-lg:w-[min(460px,calc(100vw-2rem))]">
       <form
-        className="grid max-h-[86vh] w-full max-w-lg gap-4 overflow-y-auto rounded-md border bg-background p-4 shadow-2xl"
+        className="pointer-events-auto grid max-h-[calc(100vh-2rem)] w-full gap-4 overflow-y-auto rounded-md border border-primary/25 bg-[#050b19]/95 p-4 shadow-2xl shadow-black/50 backdrop-blur-xl"
         onSubmit={submitTopUp}
       >
-        <div className="flex items-center justify-between gap-3 border-b pb-3">
+        <div className="flex items-center justify-between gap-3 border-b border-sky-200/10 pb-3">
           <div className="flex items-center gap-2">
             <CreditCard className="size-5 text-primary" />
             <div>
@@ -679,7 +679,7 @@ function TopUpModal({
             </div>
           </div>
           <button
-            className="inline-flex size-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="inline-flex size-9 items-center justify-center rounded-md border border-sky-200/15 text-muted-foreground transition hover:bg-white/[0.06] hover:text-foreground"
             title="Đóng"
             type="button"
             onClick={onClose}
@@ -781,6 +781,104 @@ function TopUpModal({
           <CreditCard className="size-4" />
           {saving ? "Đang gửi" : "Gửi yêu cầu nạp tiền"}
         </button>
+      </form>
+    </div>
+  );
+}
+
+function PasswordChangeModal({
+  values,
+  message,
+  onClose,
+  onSubmit,
+  onChange,
+}: {
+  values: {
+    currentPassword: string;
+    newPassword: string;
+  };
+  message: string | null;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onChange: (
+    field: "currentPassword" | "newPassword",
+    value: string
+  ) => void;
+}) {
+  return (
+    <div className="pointer-events-none fixed bottom-4 right-[376px] z-50 w-[min(384px,calc(100vw-392px))] max-lg:right-4 max-lg:w-[min(384px,calc(100vw-2rem))]">
+      <form
+        className="glass-panel pointer-events-auto grid w-full gap-4 rounded-lg bg-[#050b19]/95 p-5 shadow-2xl shadow-black/50"
+        onSubmit={onSubmit}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="grid size-11 place-items-center rounded-md border border-primary/35 bg-primary/10 text-primary">
+              <KeyRound className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-50">Đổi mật khẩu</h2>
+              <p className="text-sm font-semibold text-slate-300">
+                Cập nhật mật khẩu phiên chơi.
+              </p>
+            </div>
+          </div>
+          <button
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-sky-200/15 text-slate-300 transition hover:bg-white/[0.06] hover:text-slate-50"
+            title="Đóng"
+            type="button"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <label className="grid gap-2 text-sm">
+          <span className="label-caps text-slate-300">Mật khẩu hiện tại</span>
+          <input
+            className="h-11 rounded-md border border-sky-200/15 bg-[#020713]/80 px-3 font-semibold text-slate-50 outline-none transition placeholder:text-slate-500 focus:border-primary"
+            placeholder="Nhập mật khẩu hiện tại"
+            type="password"
+            value={values.currentPassword}
+            onChange={(event) => onChange("currentPassword", event.target.value)}
+          />
+        </label>
+
+        <label className="grid gap-2 text-sm">
+          <span className="label-caps text-slate-300">Mật khẩu mới</span>
+          <input
+            className="h-11 rounded-md border border-sky-200/15 bg-[#020713]/80 px-3 font-semibold text-slate-50 outline-none transition placeholder:text-slate-500 focus:border-primary"
+            placeholder="Tối thiểu 6 ký tự"
+            type="password"
+            value={values.newPassword}
+            onChange={(event) => onChange("newPassword", event.target.value)}
+          />
+        </label>
+
+        {message ? (
+          <div className="rounded-md border border-sky-200/15 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200">
+            {message}
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <button
+            className="inline-flex h-11 items-center justify-center rounded-md border border-sky-200/15 bg-white/[0.04] text-sm font-bold text-slate-200 transition hover:bg-white/[0.08]"
+            type="button"
+            onClick={onClose}
+          >
+            Hủy
+          </button>
+          <button
+            className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+            disabled={
+              values.currentPassword.length === 0 || values.newPassword.length < 6
+            }
+            type="submit"
+          >
+            Cập nhật
+          </button>
+        </div>
       </form>
     </div>
   );
@@ -1024,10 +1122,20 @@ export function CustomerSideWindowPage() {
     }
   }
 
+  function updatePasswordField(
+    field: "currentPassword" | "newPassword",
+    value: string
+  ) {
+    setPasswordValues((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
   if (collapsed) {
     return (
       <main
-        className="booking-shell grid min-h-screen place-items-start bg-cover bg-center p-4"
+        className="booking-shell grid min-h-screen justify-items-end bg-cover bg-center p-4"
         style={{ backgroundImage: `url(${bookingGamingBackground})` }}
       >
         <button
@@ -1036,7 +1144,7 @@ export function CustomerSideWindowPage() {
           type="button"
           onClick={() => setCollapsed(false)}
         >
-          <ChevronRight className="size-5" />
+          <ChevronLeft className="size-5" />
         </button>
         <TimeWarningToast
           warning={timeWarning}
@@ -1048,72 +1156,72 @@ export function CustomerSideWindowPage() {
 
   return (
     <main
-      className="booking-shell min-h-screen bg-cover bg-center text-foreground"
+      className="booking-shell min-h-screen overflow-hidden bg-cover bg-center text-foreground"
       style={{ backgroundImage: `url(${bookingGamingBackground})` }}
     >
-      <section className="glass-panel relative min-h-screen w-full max-w-[402px] border-r border-primary/20 bg-[#050b19]/88 px-5 py-4 shadow-2xl shadow-black/50 backdrop-blur-xl">
+      <section className="glass-panel fixed inset-y-0 right-0 grid h-screen w-[360px] max-w-[calc(100vw-1rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] overflow-hidden border-l border-primary/20 bg-[#050b19]/90 px-4 py-3 shadow-2xl shadow-black/50 backdrop-blur-xl">
         <button
-          className="absolute left-5 top-4 inline-flex size-11 items-center justify-center rounded-full border border-primary/25 bg-white/[0.04] text-cyan-100 transition hover:bg-primary/10 hover:text-primary"
+          className="absolute left-4 top-3 inline-flex size-10 items-center justify-center rounded-full border border-primary/25 bg-white/[0.04] text-cyan-100 transition hover:bg-primary/10 hover:text-primary"
           title="Ẩn bảng khách hàng"
           type="button"
           onClick={() => setCollapsed(true)}
         >
-          <ChevronLeft className="size-5" />
+          <ChevronRight className="size-5" />
         </button>
 
-        <div className="grid justify-items-center gap-3 pt-6">
-          <div className="relative grid size-20 place-items-center rounded-full border border-primary/35 bg-primary/10 shadow-[0_0_28px_rgba(78,222,163,0.16)]">
+        <div className="grid justify-items-center gap-2 pt-5">
+          <div className="relative grid size-16 place-items-center rounded-full border border-primary/35 bg-primary/10 shadow-[0_0_28px_rgba(78,222,163,0.16)]">
             <UserIcon />
             <span className="absolute bottom-1 right-1 size-5 rounded-full border-4 border-[#050b19] bg-emerald-500" />
           </div>
           <div className="text-center">
             <h1 className="text-xl font-bold text-slate-50">{user?.username}</h1>
-            <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-sky-200/15 bg-white/[0.05] px-4 py-1 text-sm font-semibold text-slate-100">
+            <div className="mt-1 inline-flex items-center gap-2 rounded-full border border-sky-200/15 bg-white/[0.05] px-3 py-1 text-sm font-semibold text-slate-100">
               <Monitor className="size-4 text-primary" />
               {activeSession?.machineName ?? "Chưa vào máy"}
             </div>
           </div>
         </div>
 
-        <div className="mt-7 grid gap-5">
-          <div className="rounded-lg border border-emerald-400/45 bg-emerald-400/10 p-5 shadow-[0_0_22px_rgba(52,211,153,0.1)]">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase">
-              <WalletCards className="size-5 text-emerald-400" />
+        <div className="mt-4 grid gap-3">
+          <div className="rounded-lg border border-emerald-400/45 bg-emerald-400/10 p-3 shadow-[0_0_22px_rgba(52,211,153,0.1)]">
+            <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase">
+              <WalletCards className="size-4 text-emerald-400" />
               Số dư hiện tại
             </div>
-            <p className="metric-number text-3xl font-bold text-emerald-300">
+            <p className="metric-number text-2xl font-bold text-emerald-300">
               {formatCurrency(visibleBalance)}
             </p>
           </div>
 
-          <div className="rounded-lg border border-fuchsia-300/40 bg-fuchsia-500/15 p-5 shadow-[0_0_22px_rgba(217,70,239,0.1)]">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase">
-              <Clock3 className="size-5 text-fuchsia-200" />
+          <div className="rounded-lg border border-fuchsia-300/40 bg-fuchsia-500/15 p-3 shadow-[0_0_22px_rgba(217,70,239,0.1)]">
+            <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase">
+              <Clock3 className="size-4 text-fuchsia-200" />
               Thời gian còn lại
             </div>
-            <p className="metric-number text-3xl font-bold text-fuchsia-100">
+            <p className="metric-number text-2xl font-bold text-fuchsia-100">
               {formatClock(remaining)}
             </p>
           </div>
 
-          <div className="rounded-lg border border-sky-200/15 bg-white/[0.04] p-5">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase">
-              <Clock3 className="size-5 text-cyan-100" />
+          <div className="rounded-lg border border-sky-200/15 bg-white/[0.04] p-3">
+            <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase">
+              <Clock3 className="size-4 text-cyan-100" />
               Thời gian đã dùng
             </div>
-            <p className="metric-number text-3xl font-bold text-cyan-100">
+            <p className="metric-number text-2xl font-bold text-cyan-100">
               {formatClock(elapsed)}
             </p>
           </div>
         </div>
 
         {error ? (
-          <div className="mt-4 rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">
+          <div className="mt-3 rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">
             {error}
           </div>
         ) : null}
 
-        <div className="mt-5 border-t border-sky-200/10 pt-3">
+        <div className="mt-3 min-h-0 border-t border-sky-200/10 pt-3">
           <div className="mb-2 grid grid-cols-2 rounded-md bg-[#020713]/60 p-1">
             <button
               className={`inline-flex h-9 items-center justify-center gap-2 rounded-md text-sm font-medium transition ${
@@ -1137,7 +1245,7 @@ export function CustomerSideWindowPage() {
             </button>
           </div>
           {loading ? (
-            <div className="grid min-h-28 place-items-center rounded-md border border-sky-200/15 bg-white/[0.04] text-sm text-slate-300">
+            <div className="grid min-h-24 place-items-center rounded-md border border-sky-200/15 bg-white/[0.04] text-sm text-slate-300">
               <RefreshCw className="mb-2 size-5 animate-spin" />
               Đang tải
             </div>
@@ -1148,34 +1256,37 @@ export function CustomerSideWindowPage() {
           )}
         </div>
 
-        <div className="mt-7 grid grid-cols-2 gap-4">
+        <div className="mt-4 grid grid-cols-2 gap-3">
           <button
-            className="inline-flex h-20 flex-col items-center justify-center gap-2 rounded-lg border border-orange-400/40 bg-orange-500/10 text-sm font-bold text-orange-200 transition hover:bg-orange-500/15"
+            className="inline-flex h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-orange-400/40 bg-orange-500/10 text-sm font-bold text-orange-200 transition hover:bg-orange-500/15"
             type="button"
             onClick={() => setServiceVisible(true)}
           >
-            <Utensils className="size-6" />
+            <Utensils className="size-5" />
             Dịch vụ
           </button>
           <button
-            className="inline-flex h-20 flex-col items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/10 text-sm font-bold text-emerald-200 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-500/10 text-sm font-bold text-emerald-200 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
             title="Gửi yêu cầu nạp tiền"
             type="button"
             onClick={() => setTopUpVisible(true)}
           >
-            <CreditCard className="size-6" />
+            <CreditCard className="size-5" />
             Nạp tiền
           </button>
           <button
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-lg border border-sky-200/15 bg-white/[0.04] text-sm font-bold text-slate-200 transition hover:bg-muted hover:text-slate-50"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-sky-200/15 bg-white/[0.04] text-sm font-bold text-slate-200 transition hover:bg-muted hover:text-slate-50"
             type="button"
-            onClick={() => setPasswordVisible((value) => !value)}
+            onClick={() => {
+              setPasswordMessage(null);
+              setPasswordVisible(true);
+            }}
           >
             <KeyRound className="size-5" />
             Đổi MK
           </button>
           <button
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-lg border border-red-400/40 bg-red-500/10 text-sm font-bold text-red-200 transition hover:bg-red-500/15"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-red-400/40 bg-red-500/10 text-sm font-bold text-red-200 transition hover:bg-red-500/15"
             type="button"
             onClick={() => void handleLogout()}
           >
@@ -1184,76 +1295,48 @@ export function CustomerSideWindowPage() {
           </button>
         </div>
 
-        {serviceVisible ? (
-          <ServiceOrderModal
-            activeSession={activeSession}
-            accountBalance={visibleBalance}
-            services={services}
-            onClose={() => setServiceVisible(false)}
-            onCreated={() => {
-              void refreshCurrentUser();
-              void loadPanel();
-            }}
-          />
-        ) : null}
-
-        {topUpVisible ? (
-          <TopUpModal
-            username={user?.username}
-            onClose={() => setTopUpVisible(false)}
-            onCreated={() => {
-              void refreshCurrentUser();
-              void loadPanel();
-            }}
-          />
-        ) : null}
-
-        {passwordVisible ? (
-          <form className="mt-4 grid gap-3 rounded-md border bg-background p-3" onSubmit={submitPassword}>
-            <input
-              className="h-10 rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary"
-              placeholder="Mật khẩu hiện tại"
-              type="password"
-              value={passwordValues.currentPassword}
-              onChange={(event) =>
-                setPasswordValues((current) => ({
-                  ...current,
-                  currentPassword: event.target.value,
-                }))
-              }
-            />
-            <input
-              className="h-10 rounded-md border bg-background px-3 text-sm outline-none transition focus:border-primary"
-              placeholder="Mật khẩu mới"
-              type="password"
-              value={passwordValues.newPassword}
-              onChange={(event) =>
-                setPasswordValues((current) => ({
-                  ...current,
-                  newPassword: event.target.value,
-                }))
-              }
-            />
-            <button
-              className="h-10 rounded-md bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
-              disabled={
-                passwordValues.currentPassword.length === 0 ||
-                passwordValues.newPassword.length < 6
-              }
-              type="submit"
-            >
-              Xác nhận đổi mật khẩu
-            </button>
-            {passwordMessage ? (
-              <p className="text-xs text-muted-foreground">{passwordMessage}</p>
-            ) : null}
-          </form>
-        ) : null}
-
-        <p className="mt-7 text-center font-mono text-sm text-foreground">
+        <p className="mt-3 text-center font-mono text-sm text-foreground">
           {now.toLocaleTimeString("vi-VN")} {now.toLocaleDateString("vi-VN")}
         </p>
       </section>
+
+      {serviceVisible ? (
+        <ServiceOrderModal
+          activeSession={activeSession}
+          accountBalance={visibleBalance}
+          services={services}
+          onClose={() => setServiceVisible(false)}
+          onCreated={() => {
+            void refreshCurrentUser();
+            void loadPanel();
+          }}
+        />
+      ) : null}
+
+      {topUpVisible ? (
+        <TopUpModal
+          username={user?.username}
+          onClose={() => setTopUpVisible(false)}
+          onCreated={() => {
+            void refreshCurrentUser();
+            void loadPanel();
+          }}
+        />
+      ) : null}
+
+      {passwordVisible ? (
+        <PasswordChangeModal
+          message={passwordMessage}
+          values={passwordValues}
+          onChange={updatePasswordField}
+          onClose={() => {
+            setPasswordVisible(false);
+            setPasswordMessage(null);
+          }}
+          onSubmit={submitPassword}
+        />
+      ) : null}
+
       <TimeWarningToast
         warning={timeWarning}
         onClose={() => setTimeWarning(null)}
