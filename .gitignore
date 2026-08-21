@@ -1,7 +1,6 @@
 # Ignore local project documents folder
 /document/
 # Ignore embedded toolchains and database files in cyber_game_management
-/cyber_game_management/App/
 /cyber_game_management/Database/*.mdf
 /cyber_game_management/Database/*.ldf
 /cyber_game_management/Database/*.bak
