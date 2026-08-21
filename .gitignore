@@ -1,42 +1,7 @@
-# Operating system
-.DS_Store
-Thumbs.db
-
-# IDE
-.idea/
-.vscode/
-*.iml
-
-# Logs
-*.log
-logs/
-
-# Environment files
-.env
-.env.*
-!.env.example
-!src/backend/.env.example
-!src/frontend/.env.example
-!config/*.env.example
-
-# Java / Maven
-src/backend/target/
-*.class
-
-# Node / Vite
-src/frontend/node_modules/
-src/frontend/dist/
-src/frontend/.vite/
-src/frontend/.eslintcache
-src/frontend/playwright-report/
-src/frontend/test-results/
-src/frontend/tests/
-tests/artifacts/
-
-# Portable local tools
-tools/
-config/tools/
-
-# SQL Server local files
-../Database/*.mdf
-../Database/*.ldf
+# Ignore local project documents folder
+/document/
+# Ignore embedded toolchains and database files in cyber_game_management
+/cyber_game_management/App/
+/cyber_game_management/Database/*.mdf
+/cyber_game_management/Database/*.ldf
+/cyber_game_management/Database/*.bak
