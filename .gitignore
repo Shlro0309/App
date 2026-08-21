@@ -40,3 +40,5 @@ config/tools/
 # SQL Server local files
 ../Database/*.mdf
 ../Database/*.ldf
+
+

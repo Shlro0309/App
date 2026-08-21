@@ -1,0 +1,192 @@
+HUONG DAN BAT CAC CONG TEST CHO DU AN CYBER GAME MANAGEMENT
+
+Thu muc du an:
+D:\learning_document\my_first_app\cyber_game_management\App
+
+Cong test dang dung:
+- Backend API: http://localhost:8081/api
+- Swagger: http://localhost:8081/api/swagger-ui.html
+- Frontend UI: http://localhost:5173/
+
+Luu y:
+- Backend cua du an nay chay o cong 8081, khong phai 8080.
+- Frontend chay o cong 5173.
+- Nen mo 2 cua so PowerShell rieng: 1 cua so cho backend, 1 cua so cho frontend.
+- Khong tat tien trinh theo cong neu chua kiem tra do co dung la tien trinh cua du an hay khong.
+
+
+1. MO POWERSHELL TAI THU MUC DU AN
+
+Chay lenh:
+
+cd D:\learning_document\my_first_app\cyber_game_management\App
+
+
+2. KIEM TRA CONG 8081 VA 5173 CO DANG BI CHIEM KHONG
+
+Chay lenh:
+
+Get-NetTCPConnection -LocalPort 8081,5173 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess
+
+Neu khong hien dong nao thi 2 cong nay dang trong.
+
+Neu co hien OwningProcess, kiem tra ten tien trinh bang lenh:
+
+Get-Process -Id <PID>
+
+Thay <PID> bang so trong cot OwningProcess.
+
+Vi du:
+
+Get-Process -Id 12345
+
+
+3. BAT BACKEND O CONG 8081
+
+Mo cua so PowerShell thu nhat, dung thu muc du an:
+
+cd D:\learning_document\my_first_app\cyber_game_management\App
+
+Neu PowerShell bao loi "running scripts is disabled on this system", chay lenh nay trong dung cua so PowerShell do:
+
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+Lenh tren chi mo khoa tam thoi cho cua so PowerShell hien tai. Dong cua so nay lai thi thiet lap tam thoi se mat.
+
+Chay backend:
+
+.\config\scripts\backend-maven.ps1 spring-boot:run
+
+Doi den khi thay log Spring Boot/Tomcat bao server da chay tren port 8081 va context path /api.
+
+Kiem tra backend:
+
+http://localhost:8081/api/actuator/health
+
+Neu tra ve:
+
+{"status":"UP"}
+
+thi backend da bat thanh cong.
+
+
+4. BAT FRONTEND O CONG 5173
+
+Mo cua so PowerShell thu hai, dung thu muc du an:
+
+cd D:\learning_document\my_first_app\cyber_game_management\App
+
+Neu la lan dau chay frontend hoac thieu node_modules, chay:
+
+.\config\scripts\frontend-node.ps1 install
+
+Sau do bat frontend:
+
+.\config\scripts\frontend-node.ps1 dev
+
+Mo trinh duyet:
+
+http://localhost:5173/
+
+Neu thay man hinh dang nhap thi frontend da bat thanh cong.
+
+
+5. KIEM TRA LAI CA 2 CONG DA BAT
+
+Chay lenh:
+
+Get-NetTCPConnection -LocalPort 8081,5173 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess
+
+Ket qua mong doi:
+- Co 1 tien trinh lang nghe cong 8081 cho backend.
+- Co 1 tien trinh lang nghe cong 5173 cho frontend.
+
+
+6. CAC URL CAN TEST
+
+Frontend:
+
+http://localhost:5173/
+
+Backend health check:
+
+http://localhost:8081/api/actuator/health
+
+Swagger API:
+
+http://localhost:8081/api/swagger-ui.html
+
+API thong qua frontend proxy:
+
+http://localhost:5173/api/actuator/health
+
+
+7. NEU CONG BI CHIEM
+
+Buoc 1: xem tien trinh dang chiem cong:
+
+Get-NetTCPConnection -LocalPort 8081,5173 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess
+
+Buoc 2: kiem tra ten tien trinh:
+
+Get-Process -Id <PID>
+
+Buoc 3: chi tat neu chac chan do la tien trinh backend Java hoac frontend Node cua du an nay:
+
+Stop-Process -Id <PID>
+
+Khong tat cong 8080 neu khong can, vi du an nay khong dung 8080 lam backend chinh.
+
+
+8. TAT CAC CONG TEST SAU KHI DUNG XONG
+
+Cach de nhat:
+- Quay lai cua so PowerShell dang chay backend, bam Ctrl + C.
+- Quay lai cua so PowerShell dang chay frontend, bam Ctrl + C.
+
+Neu cua so da bi dong nhung cong van bi giu:
+
+Get-NetTCPConnection -LocalPort 8081,5173 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess
+
+Sau do kiem tra tung PID:
+
+Get-Process -Id <PID>
+
+Chi khi chac chan dung tien trinh cua du an, moi tat:
+
+Stop-Process -Id <PID>
+
+
+9. LOI THUONG GAP
+
+Loi: backend-maven.ps1 cannot be loaded because running scripts is disabled on this system.
+Giai thich: PowerShell dang chan chay file .ps1.
+Cach xu ly nhanh va an toan nhat cho cua so hien tai:
+
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+Sau do chay lai:
+
+.\config\scripts\backend-maven.ps1 spring-boot:run
+
+Neu muon chay mot lenh duy nhat, co the dung:
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\config\scripts\backend-maven.ps1 spring-boot:run
+
+Loi: vao http://localhost:8081/ khong thay giao dien React.
+Giai thich: 8081 la backend API. Giao dien React nam o http://localhost:5173/.
+
+Loi: frontend goi API that bai.
+Kiem tra backend co dang chay khong:
+
+http://localhost:8081/api/actuator/health
+
+Loi: chay frontend-node.ps1 dev kem them tham so bi loi.
+Dung lenh nay:
+
+.\config\scripts\frontend-node.ps1 dev
+
+Khong can them tham so sau chu dev.
+
+Loi: Maven, Java, Node hoac npm khong nhan lenh.
+Dung script trong config\scripts, vi script se dung bo cong cu da di kem du an.
