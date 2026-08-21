@@ -1,0 +1,43 @@
+{
+    "java.compile.nullAnalysis.mode": "disabled",
+    "java.jdt.ls.java.home": "D:\\learning_document\\my_first_app\\cyber_game_management\\App\\config\\tools\\jdk-21.0.11+10",
+    "java.configuration.runtimes": [
+        {
+            "name": "JavaSE-21",
+            "path": "D:\\learning_document\\my_first_app\\cyber_game_management\\App\\config\\tools\\jdk-21.0.11+10",
+            "default": true
+        }
+    ],
+    "java.import.maven.enabled": true,
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/.metadata/**",
+        "**/archetype-resources/**",
+        "**/META-INF/maven/**",
+        "**/target/**"
+    ],
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.jdt.ls.vmargs": "-javaagent:C:\\Users\\PC\\.m2\\repository\\org\\projectlombok\\lombok\\1.18.46\\lombok-1.18.46.jar",
+    "java.project.resourceFilters": [
+        "node_modules",
+        ".git",
+        "target"
+    ],
+    "files.watcherExclude": {
+        "**/target/**": true
+    },
+    "files.exclude": {
+        "**/target": true
+    },
+    "search.exclude": {
+        "**/target": true
+    },
+    "maven.executable.path": "D:\\learning_document\\my_first_app\\cyber_game_management\\App\\config\\tools\\apache-maven-3.9.16\\bin\\mvn.cmd",
+    "typescript.tsdk": "D:\\learning_document\\my_first_app\\cyber_game_management\\App\\src\\frontend\\node_modules\\typescript\\lib",
+    "eslint.workingDirectories": [
+        {
+            "directory": "D:\\learning_document\\my_first_app\\cyber_game_management\\App\\src\\frontend",
+            "changeProcessCWD": true
+        }
+    ]
+}
