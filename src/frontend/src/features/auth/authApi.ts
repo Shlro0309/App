@@ -1,4 +1,4 @@
-import { httpClient } from "@/api/httpClient";
+﻿import { httpClient } from "@/api/httpClient";
 import type {
   AuthResponse,
   CurrentUser,
@@ -10,6 +10,7 @@ export async function login(values: LoginValues) {
   const response = await httpClient.post<AuthResponse>("/auth/login", {
     username: values.username.trim(),
     password: values.password,
+    clientType: values.clientType,
   });
 
   return response.data;

@@ -7,6 +7,8 @@ public record LoginRequest(
         String username,
 
         @NotBlank(message = "Mật khẩu là bắt buộc")
-        String password
+        String password,
+
+        String clientType
 ) {
 }

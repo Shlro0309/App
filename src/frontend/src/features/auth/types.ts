@@ -1,4 +1,4 @@
-export type UserRole = "ADMIN" | "EMPLOYEE" | "CUSTOMER";
+﻿export type UserRole = "ADMIN" | "EMPLOYEE" | "CUSTOMER";
 
 export type CurrentUser = {
   userId: number;
@@ -30,4 +30,5 @@ export type TokenResponse = {
 export type LoginValues = {
   username: string;
   password: string;
+  clientType?: string;
 };
